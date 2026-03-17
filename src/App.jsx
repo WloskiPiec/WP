@@ -56,16 +56,10 @@ const myFirebaseConfig = {
   measurementId: "G-3W1KLG4H3S"
 };
 
-// Logika środowiska: Jeśli wkleiłeś swoje klucze, użyje ich. 
-// W przeciwnym razie użyje wbudowanych kluczy testowych środowiska.
-const actualConfig = myFirebaseConfig.apiKey !== "AIzaSyDADxt2Xm_13z_lkWvGp9otlUtlsBxTioI" 
-  ? myFirebaseConfig 
-  : JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-
-const app = initializeApp(actualConfig);
+const app = initializeApp(myFirebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'table-manager-wloskipiec';
+const appId = 'table-manager-wloskipiec';
 
 const TABLE_STATUSES = {
   AVAILABLE: { id: 'AVAILABLE', label: 'Dostępny', color: 'bg-emerald-500', hover: 'hover:bg-emerald-600' },
