@@ -227,6 +227,19 @@ const App = () => {
     [reservations, selectedDate]
   );
 
+  // Obliczanie gości obecnych w lokalu w danej chwili (NA ŻYWO)
+  const liveGuestsCount = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const nowMins = currentTime.getHours() * 60 + currentTime.getMinutes();
+    
+    return reservations.filter(r => {
+      if (r.date !== todayStr) return false;
+      const rStart = timeToMinutes(r.time);
+      const rEnd = rStart + r.duration;
+      return nowMins >= rStart && nowMins < rEnd;
+    }).reduce((sum, r) => sum + r.pax, 0);
+  }, [reservations, currentTime]);
+
   const guestDatabase = useMemo(() => {
     const guests = {};
     reservations.forEach(r => {
@@ -438,11 +451,24 @@ const App = () => {
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 font-sans flex flex-col">
       <header className="bg-white border-b border-slate-200 px-8 py-4 flex flex-col lg:flex-row items-center justify-between gap-6 sticky top-0 z-50 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="bg-gradient-to-br from-orange-400 to-rose-500 p-2.5 rounded-2xl text-white shadow-lg"><ChefHat size={28} /></div>
-          <div>
-            <h1 className="text-2xl font-black text-slate-800 tracking-tight">Rezerwacje Włoski Piec</h1>
-            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Manager | Panel Sterowania</p>
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
+            <div className="bg-gradient-to-br from-orange-400 to-rose-500 p-2.5 rounded-2xl text-white shadow-lg"><ChefHat size={28} /></div>
+            <div>
+              <h1 className="text-2xl font-black text-slate-800 tracking-tight">Rezerwacje Włoski Piec</h1>
+              <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Manager | Panel Sterowania</p>
+            </div>
+          </div>
+          
+          {/* LICZNIK NA ŻYWO */}
+          <div className="hidden md:flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 shadow-sm ml-2">
+            <div className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
+            </div>
+            <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest whitespace-nowrap">
+              Na żywo: {liveGuestsCount} os.
+            </span>
           </div>
         </div>
 
@@ -667,10 +693,30 @@ const App = () => {
                     <tbody>
                       {TIME_SLOTS.map(slotTime => {
                         const slotMins = timeToMinutes(slotTime);
+                        
+                        // Obliczanie całkowitej liczby gości w tym slocie czasowym
+                        const guestsInSlot = currentDayReservations.reduce((sum, r) => {
+                          const rStart = timeToMinutes(r.time);
+                          const rEnd = rStart + r.duration;
+                          if (rStart <= slotMins && rEnd > slotMins) {
+                            return sum + r.pax;
+                          }
+                          return sum;
+                        }, 0);
+
                         return (
                           <tr key={slotTime} className="group">
-                            <td className="sticky left-0 bg-white z-20 p-2 border-b border-r border-slate-200 font-black text-slate-500 text-[10px] md:text-xs shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
-                              {slotTime}
+                            <td className="sticky left-0 bg-white z-20 p-2 border-b border-r border-slate-200 shadow-[2px_0_5px_rgba(0,0,0,0.02)] align-middle">
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                <span className="font-black text-slate-500 text-[10px] md:text-xs leading-none">{slotTime}</span>
+                                {guestsInSlot > 0 ? (
+                                  <span className="text-[9px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md flex items-center gap-1 font-bold shadow-sm" title={`Gości w tym czasie: ${guestsInSlot}`}>
+                                    <Users size={8}/> {guestsInSlot}
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] text-transparent px-1.5 py-0.5">0</span>
+                                )}
+                              </div>
                             </td>
                             {sortedTablesForTimeline.map(t => {
                                // Tu magia się dzieje - rTables to tablica wielu id połączonych stolików
@@ -688,7 +734,7 @@ const App = () => {
 
                                   return (
                                     <td key={t.id} className={`border-r border-slate-200 bg-red-500 p-0 relative ${isEnd ? 'border-b border-slate-200' : 'border-b border-red-600'}`}>
-                                       <div className="w-full h-full min-h-[28px] flex items-center justify-center overflow-hidden">
+                                       <div className="w-full h-full min-h-[38px] flex items-center justify-center overflow-hidden">
                                           {isStart && <span className="text-[8px] font-black text-white px-0.5 truncate absolute top-0.5 z-10 drop-shadow-md w-full text-center">{resInSlot.name}</span>}
                                        </div>
                                     </td>
@@ -701,7 +747,7 @@ const App = () => {
                                   className="border-b border-r border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors p-0"
                                   onClick={() => handleTimelineClick(t.id, slotTime)}
                                  >
-                                    <div className="w-full h-full min-h-[28px] opacity-0 group-hover:opacity-100 flex items-center justify-center text-slate-300">
+                                    <div className="w-full h-full min-h-[38px] opacity-0 group-hover:opacity-100 flex items-center justify-center text-slate-300">
                                       <Plus size={14}/>
                                     </div>
                                  </td>
