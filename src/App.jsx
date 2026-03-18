@@ -6,7 +6,6 @@ import {
   doc, 
   setDoc, 
   onSnapshot, 
-  query, 
   addDoc, 
   deleteDoc, 
   updateDoc 
@@ -14,16 +13,15 @@ import {
 import { 
   getAuth, 
   signInAnonymously, 
-  signInWithCustomToken, 
   onAuthStateChanged 
 } from 'firebase/auth';
 import { 
   Users, 
-  CheckCircle2, 
+  CheckCircle, 
   Clock, 
   AlertCircle, 
   Plus, 
-  Settings2, 
+  Settings, 
   Trash2, 
   X,
   LayoutDashboard,
@@ -41,14 +39,16 @@ import {
   Save,
   StickyNote,
   Lock,
-  Grid3X3
+  Grid3X3,
+  Ghost,
+  Edit2
 } from 'lucide-react';
 
 // --- KONFIGURACJA I INICJALIZACJA FIREBASE ---
 
 const myFirebaseConfig = {
-  apiKey: "AIzaSyDADxt2Xm_13z_lkWvGp9otlUtlsBxTioI", // Pamiętaj, aby podmienić "WKLEJ_TUTAJ" na Twój klucz API
-  authDomain: "wloskipiecrezerwacje.firebaseapp.com", // Pamiętaj, aby podmienić "WKLEJ_TUTAJ" na Twoją domenę
+  apiKey: "AIzaSyDADxt2Xm_13z_lkWvGp9otlUtlsBxTioI",
+  authDomain: "wloskipiecrezerwacje.firebaseapp.com",
   projectId: "wloskipiecrezerwacje",
   storageBucket: "wloskipiecrezerwacje.firebasestorage.app",
   messagingSenderId: "977141469721",
@@ -56,9 +56,12 @@ const myFirebaseConfig = {
   measurementId: "G-3W1KLG4H3S"
 };
 
+// Sztywno wymuszamy użycie Twojej bazy danych, ignorując środowisko testowe
 const app = initializeApp(myFirebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// Stała ścieżka do Twojej bazy danych
 const appId = 'table-manager-wloskipiec';
 
 const TABLE_STATUSES = {
@@ -69,33 +72,45 @@ const TABLE_STATUSES = {
 };
 
 const INITIAL_TABLES_DATA = [
-  { id: 10, number: '10', capacity: 4, x: 40, y: 40, shape: 'rect' },
-  { id: 11, number: '11', capacity: 2, x: 180, y: 40, shape: 'rect' },
-  { id: 12, number: '12', capacity: 4, x: 320, y: 40, shape: 'rect' },
-  { id: 101, number: 'B1', capacity: 1, x: 480, y: 160, shape: 'round', type: 'bar' },
-  { id: 102, number: 'B2', capacity: 1, x: 540, y: 160, shape: 'round', type: 'bar' },
-  { id: 103, number: 'B3', capacity: 1, x: 600, y: 160, shape: 'round', type: 'bar' },
-  { id: 104, number: 'B4', capacity: 1, x: 660, y: 160, shape: 'round', type: 'bar' },
-  { id: 13, number: '13', capacity: 2, x: 140, y: 320, shape: 'rect' },
-  { id: 20, number: '20', capacity: 2, x: 260, y: 320, shape: 'rect' },
-  { id: 21, number: '21', capacity: 2, x: 380, y: 320, shape: 'rect' },
-  { id: 22, number: '22', capacity: 2, x: 500, y: 320, shape: 'rect' },
-  { id: 14, number: '14', capacity: 4, x: 140, y: 440, shape: 'rect' },
-  { id: 15, number: '15', capacity: 4, x: 260, y: 440, shape: 'rect' },
-  { id: 30, number: '30', capacity: 6, x: 380, y: 440, shape: 'rect', width: 'w-24' },
-  { id: 31, number: '31', capacity: 4, x: 520, y: 440, shape: 'rect' },
-  { id: 16, number: '16', capacity: 7, x: 40, y: 600, shape: 'round', type: 'booth' },
-  { id: 34, number: '34', capacity: 2, x: 220, y: 600, shape: 'round' },
-  { id: 33, number: '33', capacity: 2, x: 340, y: 600, shape: 'round' },
-  { id: 32, number: '32', capacity: 2, x: 460, y: 600, shape: 'round' },
-  { id: 35, number: '35', capacity: 5, x: 220, y: 740, shape: 'rect' },
-  { id: 36, number: '36', capacity: 6, x: 340, y: 740, shape: 'rect' },
-  { id: 37, number: '37', capacity: 6, x: 460, y: 740, shape: 'rect' },
-  { id: 23, number: '23', capacity: 8, x: 750, y: 330, shape: 'round', size: 'w-32 h-32' },
-  { id: 27, number: '27', capacity: 4, x: 750, y: 480, shape: 'rect' },
-  { id: 26, number: '26', capacity: 4, x: 750, y: 600, shape: 'rect' },
-  { id: 24, number: '24', capacity: 2, x: 890, y: 480, shape: 'round' },
-  { id: 25, number: '25', capacity: 2, x: 890, y: 600, shape: 'round' },
+  // --- GŁÓWNA SALA (FIZYCZNE STOŁY) ---
+  { id: 10, number: '10', capacity: 6, minCapacity: 4, maxCapacity: 10, x: 40, y: 40, shape: 'rect' },
+  { id: 11, number: '11', capacity: 4, minCapacity: 2, maxCapacity: 6, x: 180, y: 40, shape: 'rect' },
+  { id: 12, number: '12', capacity: 4, minCapacity: 2, maxCapacity: 4, x: 320, y: 40, shape: 'rect' },
+  
+  { id: 101, number: 'B1', capacity: 1, minCapacity: 1, maxCapacity: 1, x: 480, y: 160, shape: 'round', type: 'bar' },
+  { id: 102, number: 'B2', capacity: 1, minCapacity: 1, maxCapacity: 1, x: 540, y: 160, shape: 'round', type: 'bar' },
+  { id: 103, number: 'B3', capacity: 1, minCapacity: 1, maxCapacity: 1, x: 600, y: 160, shape: 'round', type: 'bar' },
+  { id: 104, number: 'B4', capacity: 1, minCapacity: 1, maxCapacity: 1, x: 660, y: 160, shape: 'round', type: 'bar' },
+  
+  { id: 13, number: '13', capacity: 2, minCapacity: 2, maxCapacity: 3, x: 140, y: 320, shape: 'rect' },
+  { id: 20, number: '20', capacity: 2, minCapacity: 2, maxCapacity: 3, x: 260, y: 320, shape: 'rect' },
+  { id: 21, number: '21', capacity: 2, minCapacity: 2, maxCapacity: 3, x: 380, y: 320, shape: 'rect' },
+  { id: 22, number: '22', capacity: 2, minCapacity: 2, maxCapacity: 3, x: 500, y: 320, shape: 'rect' },
+  { id: 14, number: '14', capacity: 6, minCapacity: 4, maxCapacity: 10, x: 140, y: 440, shape: 'rect' }, 
+  { id: 15, number: '15', capacity: 4, minCapacity: 2, maxCapacity: 6, x: 260, y: 440, shape: 'rect' },
+  { id: 30, number: '30', capacity: 6, minCapacity: 4, maxCapacity: 10, x: 380, y: 440, shape: 'rect', width: 'w-24' },
+  { id: 31, number: '31', capacity: 4, minCapacity: 2, maxCapacity: 6, x: 520, y: 440, shape: 'rect' },
+  { id: 16, number: '16', capacity: 7, minCapacity: 2, maxCapacity: 8, x: 40, y: 600, shape: 'round', type: 'booth' },
+  { id: 34, number: '34', capacity: 2, minCapacity: 2, maxCapacity: 3, x: 220, y: 600, shape: 'round' },
+  { id: 33, number: '33', capacity: 2, minCapacity: 2, maxCapacity: 3, x: 340, y: 600, shape: 'round' },
+  { id: 32, number: '32', capacity: 2, minCapacity: 2, maxCapacity: 3, x: 460, y: 600, shape: 'round' },
+  { id: 35, number: '35', capacity: 5, minCapacity: 2, maxCapacity: 6, x: 220, y: 740, shape: 'rect' },
+  { id: 36, number: '36', capacity: 6, minCapacity: 2, maxCapacity: 6, x: 340, y: 740, shape: 'rect' },
+  { id: 37, number: '37', capacity: 6, minCapacity: 2, maxCapacity: 6, x: 460, y: 740, shape: 'rect' },
+  { id: 23, number: '23', capacity: 8, minCapacity: 2, maxCapacity: 10, x: 750, y: 330, shape: 'round', size: 'w-32 h-32' },
+  { id: 27, number: '27', capacity: 4, minCapacity: 2, maxCapacity: 6, x: 750, y: 480, shape: 'rect' },
+  { id: 26, number: '26', capacity: 4, minCapacity: 2, maxCapacity: 6, x: 750, y: 600, shape: 'rect' },
+  { id: 24, number: '24', capacity: 2, minCapacity: 2, maxCapacity: 3, x: 890, y: 480, shape: 'round' },
+  { id: 25, number: '25', capacity: 2, minCapacity: 2, maxCapacity: 3, x: 890, y: 600, shape: 'round' },
+
+  // --- STREFA WIRTUALNA (POŁÓWKI STOŁÓW - zgodnie z plikiem) ---
+  { id: 910, number: '10A', capacity: 2, minCapacity: 2, maxCapacity: 2, x: 40, y: 900, shape: 'rect', type: 'virtual', width: 'w-16' },
+  { id: 911, number: '11A', capacity: 3, minCapacity: 3, maxCapacity: 3, x: 120, y: 900, shape: 'rect', type: 'virtual', width: 'w-16' },
+  { id: 912, number: '12A', capacity: 2, minCapacity: 2, maxCapacity: 2, x: 200, y: 900, shape: 'rect', type: 'virtual', width: 'w-16' },
+  { id: 914, number: '14A', capacity: 2, minCapacity: 2, maxCapacity: 2, x: 280, y: 900, shape: 'rect', type: 'virtual', width: 'w-16' },
+  { id: 915, number: '15A', capacity: 2, minCapacity: 2, maxCapacity: 2, x: 360, y: 900, shape: 'rect', type: 'virtual', width: 'w-16' },
+  { id: 926, number: '26A', capacity: 2, minCapacity: 2, maxCapacity: 2, x: 440, y: 900, shape: 'rect', type: 'virtual', width: 'w-16' },
+  { id: 927, number: '27A', capacity: 2, minCapacity: 2, maxCapacity: 2, x: 520, y: 900, shape: 'rect', type: 'virtual', width: 'w-16' },
 ];
 
 const TIME_OPTIONS = [];
@@ -115,14 +130,13 @@ const timeToMinutes = (timeStr) => {
   return h * 60 + m;
 };
 
-// Zdefiniowane grupy stolików, które można ze sobą łączyć
+// Fizyczne grupy, które można łączyć ze sobą na sali
 const COMBINABLE_GROUPS = [
   [10, 11, 12],
   [15, 30, 31],
   [26, 27]
 ];
 
-// Funkcja pomocnicza do pobierania nazw połączonych stołów
 const getAssignedTableNumbers = (res) => {
   const ids = res.tableIds || (res.tableId ? [res.tableId] : []);
   if (ids.length === 0) return "-";
@@ -152,16 +166,13 @@ const App = () => {
 
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [tempComment, setTempComment] = useState("");
+  const [editingResId, setEditingResId] = useState(null);
 
   // --- AUTORYZACJA ---
   useEffect(() => {
     const initAuth = async () => {
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
+        await signInAnonymously(auth);
       } catch (err) { console.error("Błąd autoryzacji", err); }
     };
     initAuth();
@@ -173,24 +184,30 @@ const App = () => {
   useEffect(() => {
     if (!user) return;
 
-    const resRef = collection(db, 'artifacts', appId, 'public', 'data', 'reservations');
-    const unsubRes = onSnapshot(resRef, 
-      (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setReservations(data);
-      }
-    );
+    try {
+      const resRef = collection(db, 'artifacts', appId, 'public', 'data', 'reservations');
+      const unsubRes = onSnapshot(resRef, 
+        (snapshot) => {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setReservations(data);
+        },
+        (error) => console.error("Błąd pobierania rezerwacji:", error)
+      );
 
-    const stateRef = collection(db, 'artifacts', appId, 'public', 'data', 'tableStates');
-    const unsubStates = onSnapshot(stateRef,
-      (snapshot) => {
-        const states = {};
-        snapshot.docs.forEach(doc => { states[doc.id] = doc.data(); });
-        setTableStates(states);
-      }
-    );
+      const stateRef = collection(db, 'artifacts', appId, 'public', 'data', 'tableStates');
+      const unsubStates = onSnapshot(stateRef,
+        (snapshot) => {
+          const states = {};
+          snapshot.docs.forEach(doc => { states[doc.id] = doc.data(); });
+          setTableStates(states);
+        },
+        (error) => console.error("Błąd pobierania statusów:", error)
+      );
 
-    return () => { unsubRes(); unsubStates(); };
+      return () => { unsubRes(); unsubStates(); };
+    } catch (err) {
+      console.error("Błąd inicjalizacji bazy danych:", err);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -257,6 +274,7 @@ const App = () => {
     setNotification({ message: `Status stolika zaktualizowany`, type: 'success' });
   };
 
+  // Automatyczne dopasowanie ilości osób po wyborze stolika
   const handleTableSelectionChange = (newIds) => {
     setResTableIds(newIds);
     const totalCap = newIds.reduce((sum, tid) => sum + (INITIAL_TABLES_DATA.find(t=>t.id===tid)?.capacity || 0), 0);
@@ -267,7 +285,26 @@ const App = () => {
     }
   };
 
-  const addReservation = async () => {
+  const handleEditReservation = (res) => {
+    setEditingResId(res.id);
+    setResTableIds(res.tableIds || [res.tableId]);
+    setResTime(res.time);
+    setResDuration(res.duration);
+    setResName(res.name);
+    setResPhone(res.phone);
+    setResPax(res.pax);
+    setResNotes(res.notes || "");
+    setSelectedDate(res.date);
+    setActiveView('add-reservation');
+  };
+
+  const resetForm = () => {
+    setShowResForm(false);
+    setResName(""); setResPhone(""); setResNotes(""); setResPax(2); setResTableIds([]);
+    setEditingResId(null);
+  };
+
+  const saveReservation = async () => {
     if (!user || resTableIds.length === 0) {
       setNotification({ message: `Proszę wybrać przynajmniej jeden stolik!`, type: 'warning' });
       return;
@@ -278,8 +315,9 @@ const App = () => {
 
     const hasConflict = reservations.some(r => {
       if (r.date !== selectedDate) return false;
-      const rTables = r.tableIds || [r.tableId];
+      if (editingResId && r.id === editingResId) return false; // Pomija sprawdzanie kolizji z samym sobą podczas edycji
       
+      const rTables = r.tableIds || [r.tableId];
       const intersects = rTables.some(tid => resTableIds.includes(tid));
       if (!intersects) return false;
       
@@ -293,18 +331,25 @@ const App = () => {
       return;
     }
 
-    const newRes = { 
+    const resData = { 
       tableIds: resTableIds, date: selectedDate, time: resTime, duration: parseInt(resDuration), 
       name: resName || "Klient", phone: resPhone || "Brak numeru", pax: parseInt(resPax) || 2,
-      notes: resNotes || "", feedback: "", createdAt: Date.now()
+      notes: resNotes || ""
     };
-    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'reservations'), newRes);
-    setNotification({ message: `Rezerwacja dodana poprawnie`, type: 'success' });
+
+    if (editingResId) {
+      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reservations', editingResId);
+      await updateDoc(docRef, resData);
+      setNotification({ message: `Zmiany w rezerwacji zostały zapisane`, type: 'success' });
+    } else {
+      resData.feedback = "";
+      resData.createdAt = Date.now();
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'reservations'), resData);
+      setNotification({ message: `Rezerwacja dodana poprawnie`, type: 'success' });
+    }
     
-    setShowResForm(false);
-    setResName(""); setResPhone(""); setResNotes(""); setResPax(2); setResTableIds([]);
-    
-    if (activeView === 'add-reservation') setActiveView('timeline');
+    resetForm();
+    if (activeView === 'add-reservation') setActiveView('reservations');
   };
 
   const updateReservationFeedback = async (resId, feedback) => {
@@ -342,6 +387,7 @@ const App = () => {
   };
 
   const handleTimelineClick = (tableId, time) => {
+    resetForm();
     setResTime(time);
     handleTableSelectionChange([tableId]);
     setActiveView('add-reservation');
@@ -356,12 +402,21 @@ const App = () => {
     return numA - numB;
   });
 
-  const timelineColors = ['bg-red-500', 'bg-rose-600', 'bg-red-600', 'bg-rose-500', 'bg-red-700'];
-
   const tableOptions = [
     { v: "", l: "-- Wybierz stolik --" },
-    ...INITIAL_TABLES_DATA.map(t => ({ v: t.id, l: `${t.type === 'bar' ? '' : 'Stół'} ${t.number} (do ${t.capacity} os.)` }))
+    ...INITIAL_TABLES_DATA.map(t => ({ 
+      v: t.id, 
+      l: `${t.type === 'virtual' ? 'Wirtualny ' : 'Stół '} ${t.number} (od ${t.minCapacity} do ${t.maxCapacity} os.)` 
+    }))
   ];
+
+  // Wyliczanie połączonych widełek dla zabezpieczenia formularza
+  const currentMaxCap = resTableIds.length > 0 
+    ? resTableIds.reduce((sum, tid) => sum + (INITIAL_TABLES_DATA.find(t=>t.id===tid)?.maxCapacity || 0), 0) 
+    : 50;
+  const currentMinCap = resTableIds.length > 0 
+    ? resTableIds.reduce((sum, tid) => sum + (INITIAL_TABLES_DATA.find(t=>t.id===tid)?.minCapacity || 1), 0) 
+    : 1;
 
   if (!user) return <div className="flex items-center justify-center h-screen font-bold text-slate-400 italic">Łączenie z bazą danych...</div>;
 
@@ -388,7 +443,7 @@ const App = () => {
         <nav className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-200 overflow-x-auto">
           <NavBtn active={activeView === 'floor'} onClick={() => setActiveView('floor')} icon={<LayoutDashboard size={18}/>} label="Plan Sali" />
           <NavBtn active={activeView === 'timeline'} onClick={() => setActiveView('timeline')} icon={<Grid3X3 size={18}/>} label="Grafik Czasowy" />
-          <NavBtn active={activeView === 'add-reservation'} onClick={() => { setActiveView('add-reservation'); setResTableIds([]); setResPax(2); }} icon={<Plus size={18}/>} label="Rezerwuj" />
+          <NavBtn active={activeView === 'add-reservation'} onClick={() => { setActiveView('add-reservation'); resetForm(); }} icon={<Plus size={18}/>} label="Rezerwuj" />
           <NavBtn active={activeView === 'reservations'} onClick={() => setActiveView('reservations')} icon={<ListOrdered size={18}/>} label="Lista Wizyt" />
           <NavBtn active={activeView === 'guests'} onClick={() => setActiveView('guests')} icon={<UserCircle size={18}/>} label="Baza Gości" />
         </nav>
@@ -410,11 +465,17 @@ const App = () => {
                     <LegendItem color="bg-emerald-500" label="Wolny" />
                     <LegendItem color="bg-rose-500" label="Zajęty" />
                     <LegendItem color="bg-amber-500" label="Rezerwacja" />
-                    <LegendItem color="ring-4 ring-amber-300 animate-pulse bg-emerald-500" label="Blokada 60m" />
+                    <LegendItem color="border-2 border-dashed border-slate-400 bg-slate-100" label="Wirtualny (Połówka)" />
                   </div>
                 </div>
 
-                <div className="relative flex-1 bg-slate-50 rounded-3xl border border-slate-100 overflow-auto shadow-inner p-10 min-h-[850px]">
+                <div className="relative flex-1 bg-slate-50 rounded-3xl border border-slate-100 overflow-auto shadow-inner p-10 min-h-[1050px]">
+                  
+                  {/* Nagłówek dla strefy wirtualnej */}
+                  <div className="absolute font-black text-slate-300 uppercase text-xs tracking-widest border-b-2 border-slate-200 pb-3 flex items-center gap-2" style={{left: 40, top: 850, width: '850px'}}>
+                    <Ghost size={18} /> Strefa Wirtualna (Ukryte Dostawki i Połówki do rezerwacji osobno)
+                  </div>
+
                   {INITIAL_TABLES_DATA.map(table => {
                     const tableRes = currentDayReservations.filter(r => (r.tableIds || [r.tableId]).includes(table.id));
                     const state = tableStates[table.id] || { status: 'AVAILABLE' };
@@ -422,15 +483,18 @@ const App = () => {
                     const isUpcoming = getUpcomingReservation(table.id);
                     let statusColor = TABLE_STATUSES[state.status].color;
                     if (tableRes.length > 0) statusColor = TABLE_STATUSES.RESERVED.color;
+                    
+                    const isVirtual = table.type === 'virtual';
                     const size = table.size || (table.type === 'bar' ? 'w-14 h-14' : table.type === 'booth' ? 'w-32 h-32' : `${table.width || 'w-24'} h-20`);
                     const shape = table.shape === 'round' ? 'rounded-full' : table.type === 'booth' ? 'rounded-tr-[3.5rem] rounded-bl-[3.5rem]' : 'rounded-2xl';
+                    const borderStyle = isVirtual ? 'border-2 border-dashed border-white/60 shadow-none opacity-90' : 'shadow-2xl';
 
                     return (
                       <button key={table.id} onClick={() => { setSelectedTableId(table.id); setShowResForm(false); }} style={{ left: table.x, top: table.y }}
-                        className={`absolute ${size} ${shape} flex flex-col items-center justify-center text-white transition-all transform hover:scale-105 shadow-2xl active:scale-95 z-10 ${statusColor} ${selectedTableId === table.id ? 'ring-8 ring-indigo-200 ring-offset-4' : ''} ${isUpcoming ? 'ring-4 ring-amber-400 animate-pulse ring-offset-2' : ''}`}
+                        className={`absolute ${size} ${shape} flex flex-col items-center justify-center text-white transition-all transform hover:scale-105 active:scale-95 z-10 ${statusColor} ${borderStyle} ${selectedTableId === table.id ? 'ring-8 ring-indigo-200 ring-offset-4' : ''} ${isUpcoming ? 'ring-4 ring-amber-400 animate-pulse ring-offset-2' : ''}`}
                       >
-                        <span className="text-2xl font-black leading-none mb-1">{table.number}</span>
-                        <div className="flex items-center gap-1.5 opacity-80 font-bold text-xs"><Users size={14} /><span>{table.capacity}</span></div>
+                        <span className={`${isVirtual ? 'text-lg' : 'text-2xl'} font-black leading-none mb-1`}>{table.number}</span>
+                        <div className="flex items-center gap-1.5 opacity-80 font-bold text-[10px]"><Users size={12} /><span>{table.capacity}</span></div>
                         {state.status === 'OCCUPIED' && occupancyTime && (<div className="absolute -bottom-2 bg-white text-rose-600 rounded-full px-2.5 py-1 text-[10px] font-black border border-rose-100 shadow-lg whitespace-nowrap">{occupancyTime}</div>)}
                         {tableRes.length > 0 && (<div className="absolute -top-2 -right-2 bg-white rounded-full p-1.5 border border-slate-100 shadow-lg"><Clock size={16} className={`${isUpcoming ? 'text-amber-600 animate-bounce' : 'text-amber-500'}`} /></div>)}
                       </button>
@@ -445,7 +509,10 @@ const App = () => {
                       <div className="flex justify-between items-start">
                         <div>
                           <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase leading-none">Stół {selectedTableData?.number}</h2>
-                          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Pojemność: {selectedTableData?.capacity} os.</p>
+                          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Domyślnie: {selectedTableData?.capacity} os. (od {selectedTableData?.minCapacity} do {selectedTableData?.maxCapacity})</p>
+                          {selectedTableData?.type === 'virtual' && (
+                            <p className="text-indigo-500 text-[10px] font-black uppercase mt-1 bg-indigo-50 inline-block px-2 py-1 rounded-md">Połówka / Dostawka</p>
+                          )}
                         </div>
                         <button onClick={() => setSelectedTableId(null)} className="p-2.5 hover:bg-slate-50 rounded-2xl transition-colors text-slate-300 hover:text-slate-600"><X size={24}/></button>
                       </div>
@@ -505,6 +572,7 @@ const App = () => {
                               {currentDayReservations.filter(r => (r.tableIds || [r.tableId]).includes(selectedTableId)).length === 0 && (<div className="text-center py-10 bg-slate-50 rounded-3xl border border-dashed border-slate-200"><p className="text-[11px] font-black text-slate-300 uppercase">Dziś brak planów</p></div>)}
                             </div>
                             <button onClick={() => { 
+                              resetForm();
                               setShowResForm(true); 
                               handleTableSelectionChange([selectedTableId]); 
                             }} className="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl text-sm uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 active:scale-95 flex items-center justify-center gap-3"><Plus size={22} /> Rezerwuj stolik</button>
@@ -521,15 +589,23 @@ const App = () => {
                            <div className="bg-white p-6 rounded-[2rem] border border-slate-200 space-y-5">
                               <InputGroup label="Imię i Nazwisko" type="text" placeholder="Np. Kowalski" value={resName} onChange={e=>setResName(e.target.value)} />
                               <InputGroup label="Telefon Kontaktowy" type="tel" placeholder="+48 ___ ___ ___" value={resPhone} onChange={e=>setResPhone(e.target.value)} />
-                              <InputGroup label={`Liczba gości`} type="number" value={resPax} onChange={e=>setResPax(e.target.value)} min={1} max={50} />
+                              <InputGroup 
+                                label={`Liczba gości`} 
+                                type="number" 
+                                value={resPax} 
+                                onChange={e=>setResPax(e.target.value)} 
+                                min={currentMinCap} 
+                                max={currentMaxCap} 
+                                helperText={resTableIds.length > 0 ? `Od ${currentMinCap} do ${currentMaxCap} os.` : ''}
+                              />
                               <InputGroup label="Uwagi / Życzenia specjalne" type="textarea" placeholder="Np. stolik przy oknie, alergie..." value={resNotes} onChange={e=>setResNotes(e.target.value)} />
                            </div>
                            
                            <MultiTableSelect selectedIds={resTableIds} onChange={handleTableSelectionChange} />
                            
                            <div className="flex gap-4">
-                             <button onClick={()=>setShowResForm(false)} className="flex-1 py-5 text-[11px] font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Anuluj</button>
-                             <button onClick={addReservation} className="flex-[2] bg-indigo-600 text-white rounded-3xl py-5 font-black uppercase text-sm shadow-xl hover:shadow-indigo-200 transition-all">Zatwierdź</button>
+                             <button onClick={resetForm} className="flex-1 py-5 text-[11px] font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Anuluj</button>
+                             <button onClick={saveReservation} className="flex-[2] bg-indigo-600 text-white rounded-3xl py-5 font-black uppercase text-sm shadow-xl hover:shadow-indigo-200 transition-all">{editingResId ? "Zapisz Zmiany" : "Zatwierdź"}</button>
                            </div>
                         </div>
                       )}
@@ -629,7 +705,7 @@ const App = () => {
           {activeView === 'add-reservation' && (
             <div className="bg-white rounded-[3rem] shadow-xl border border-slate-200 p-10 h-full flex flex-col animate-in fade-in duration-500 max-w-5xl mx-auto overflow-y-auto">
               <div className="mb-10 text-center">
-                <h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase">Nowa Rezerwacja</h2>
+                <h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase">{editingResId ? "Edytuj Rezerwację" : "Nowa Rezerwacja"}</h2>
                 <p className="text-slate-400 font-bold uppercase text-[11px] tracking-widest mt-2">Wybierany termin: {selectedDate}</p>
               </div>
               
@@ -643,14 +719,22 @@ const App = () => {
                         handleTableSelectionChange([Number(val)]);
                       }
                     }} options={tableOptions} />
-                    <InputGroup label="Liczba gości" type="number" value={resPax} onChange={e=>setResPax(e.target.value)} min={1} max={50} />
+                    <InputGroup 
+                      label="Liczba gości" 
+                      type="number" 
+                      value={resPax} 
+                      onChange={e=>setResPax(e.target.value)} 
+                      min={currentMinCap} 
+                      max={currentMaxCap} 
+                      helperText={resTableIds.length > 0 ? `Od ${currentMinCap} do ${currentMaxCap} os.` : ''}
+                    />
                     <InputGroup label="Godzina" type="select" value={resTime} onChange={e=>setResTime(e.target.value)} options={TIME_OPTIONS} />
                     <InputGroup label="Czas trwania" type="select" value={resDuration} onChange={e=>setResDuration(e.target.value)} options={[{v: 60, l: '1h'}, {v: 120, l: '2h'}, {v: 180, l: '3h'}, {v: 240, l: '4h'}]} />
                  </div>
                  
                  <div className="bg-white p-8 rounded-[2rem] border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <InputGroup label="Imię i Nazwisko" type="text" placeholder="Np. Kowalski" value={resName} onChange={e=>setResName(e.target.value)} />
-                    <InputGroup label="Nr Telefonu" type="tel" placeholder="+48..." value={resPhone} onChange={e=>setResPhone(e.target.value)} />
+                    <InputGroup label="Telefon Kontaktowy" type="tel" placeholder="+48 ___ ___ ___" value={resPhone} onChange={e=>setResPhone(e.target.value)} />
                     <div className="md:col-span-2">
                       <InputGroup label="Uwagi / Życzenia" type="textarea" placeholder="Specjalne życzenia..." value={resNotes} onChange={e=>setResNotes(e.target.value)} />
                     </div>
@@ -660,8 +744,8 @@ const App = () => {
               </div>
               
               <div className="mt-8 flex gap-4 justify-end">
-                 <button onClick={()=>setActiveView('timeline')} className="px-8 py-5 text-[11px] font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Anuluj</button>
-                 <button onClick={addReservation} className="px-12 bg-indigo-600 text-white rounded-3xl py-5 font-black uppercase text-sm shadow-xl hover:shadow-indigo-200 transition-all flex items-center gap-2"><Plus size={18} /> Dodaj Rezerwację</button>
+                 <button onClick={() => { resetForm(); setActiveView('timeline'); }} className="px-8 py-5 text-[11px] font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Anuluj</button>
+                 <button onClick={saveReservation} className="px-12 bg-indigo-600 text-white rounded-3xl py-5 font-black uppercase text-sm shadow-xl hover:shadow-indigo-200 transition-all flex items-center gap-2"><Plus size={18} /> {editingResId ? "Zapisz Zmiany" : "Dodaj Rezerwację"}</button>
               </div>
             </div>
           )}
@@ -707,7 +791,10 @@ const App = () => {
                              </div>
                            )}
                         </td>
-                        <td className="py-7 px-6 text-right"><button onClick={() => deleteReservation(res.id)} className="p-3 text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100"><Trash2 size={22}/></button></td>
+                        <td className="py-7 px-6 text-right">
+                          <button onClick={() => handleEditReservation(res)} className="p-3 text-slate-200 hover:text-indigo-500 opacity-0 group-hover:opacity-100 transition-all" title="Edytuj rezerwację"><Edit2 size={22}/></button>
+                          <button onClick={() => deleteReservation(res.id)} className="p-3 text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all" title="Usuń rezerwację"><Trash2 size={22}/></button>
+                        </td>
                       </tr>
                     ))}
                     {currentDayReservations.length === 0 && (
@@ -804,7 +891,6 @@ const App = () => {
 
 // --- KOMPONENTY POMOCNICZE ---
 
-// Zaktualizowany komponent do wyboru stolików obsługujący dedykowane grupy
 const MultiTableSelect = ({ selectedIds, onChange }) => {
   if (!selectedIds || selectedIds.length === 0) return null;
 
@@ -855,9 +941,12 @@ const LegendItem = ({ color, label }) => (
   </div>
 );
 
-const InputGroup = ({ label, type, value, onChange, placeholder, options, min, max }) => (
+const InputGroup = ({ label, type, value, onChange, placeholder, options, min, max, helperText }) => (
   <div>
-    <label className="text-[10px] font-black text-slate-400 uppercase block mb-2 ml-2 tracking-widest">{label}</label>
+    <div className="flex justify-between items-baseline mb-2 ml-2">
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
+        {helperText && <span className="text-[9px] font-bold text-indigo-400 tracking-wider">{helperText}</span>}
+    </div>
     {type === 'select' ? (
       <select value={value} onChange={onChange} className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 bg-white text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all">
         {options.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
