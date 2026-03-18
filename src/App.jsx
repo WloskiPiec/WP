@@ -397,8 +397,23 @@ const App = () => {
   const upcomingResForSelected = selectedTableId ? getUpcomingReservation(selectedTableId) : null;
 
   const sortedTablesForTimeline = [...INITIAL_TABLES_DATA].sort((a, b) => {
-    const numA = parseInt(a.number) || 999;
-    const numB = parseInt(b.number) || 999;
+    const getWeight = (t) => {
+      if (t.type === 'bar') return 2; // Krzesła barowe na sam koniec
+      if (t.type === 'virtual') return 1; // Wirtualne przed barowymi
+      return 0; // Zwykłe stoły jako pierwsze
+    };
+    
+    const weightA = getWeight(a);
+    const weightB = getWeight(b);
+    
+    // Najpierw sortujemy po grupie (zwykłe -> wirtualne -> barowe)
+    if (weightA !== weightB) {
+      return weightA - weightB;
+    }
+    
+    // Potem sortujemy liczbowo w obrębie danej grupy
+    const numA = parseInt(String(a.number).replace(/\D/g, '')) || 999;
+    const numB = parseInt(String(b.number).replace(/\D/g, '')) || 999;
     return numA - numB;
   });
 
