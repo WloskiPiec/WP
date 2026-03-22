@@ -266,13 +266,17 @@ const App = () => {
   const getUpcomingReservation = (tableId) => {
     const today = new Date().toISOString().split('T')[0];
     if (selectedDate !== today) return null;
-    const tableRes = currentDayReservations.filter(r => (r.tableIds || [r.tableId]).includes(tableId));
+    
+    // Filtrujemy tylko te rezerwacje, w których goście JESZCZE NIE SĄ posadzeni
+    const tableRes = currentDayReservations.filter(r => (r.tableIds || [r.tableId]).includes(tableId) && r.status !== 'SEATED');
     if (tableRes.length === 0) return null;
+    
     const nowMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
     return tableRes.find(res => {
       const resMinutes = timeToMinutes(res.time);
       const diff = resMinutes - nowMinutes;
-      return diff > 0 && diff <= 60;
+      // Rezerwacja blokuje stół od 30 min przed planowaną wizytą do 60 min po (jeśli gość się spóźnia)
+      return diff >= -30 && diff <= 60;
     });
   };
 
@@ -285,6 +289,33 @@ const App = () => {
     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'tableStates', String(id));
     await setDoc(docRef, { status: newStatus, occupiedSince: newStatus === 'OCCUPIED' ? Date.now() : null });
     setNotification({ message: `Status stolika zaktualizowany`, type: 'success' });
+  };
+
+  // Nowa funkcja do akceptowania gościa przybywającego na rezerwację
+  const handleSeatGuest = async (resId, tableId) => {
+    if (!user) return;
+    const resData = reservations.find(r => r.id === resId);
+    if (!resData) return;
+    
+    const tablesToUpdate = resData.tableIds || [tableId];
+    
+    try {
+      // 1. Zaktualizuj status samej rezerwacji w bazie na 'SEATED' (gość obecny)
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'reservations', resId), { status: 'SEATED' });
+      
+      // 2. Zaktualizuj fizyczny status stołu (lub połączonych stołów) na 'Zajęty' (OCCUPIED)
+      for (let tId of tablesToUpdate) {
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tableStates', String(tId)), { 
+              status: 'OCCUPIED', 
+              occupiedSince: Date.now() 
+          });
+      }
+      
+      setNotification({ message: `Gość z rezerwacji został posadzony!`, type: 'success' });
+    } catch (err) {
+      console.error("Błąd podczas sadzania gościa:", err);
+      setNotification({ message: `Błąd komunikacji z bazą.`, type: 'warning' });
+    }
   };
 
   // Automatyczne dopasowanie ilości osób po wyborze stolika
@@ -355,6 +386,7 @@ const App = () => {
       await updateDoc(docRef, resData);
       setNotification({ message: `Zmiany w rezerwacji zostały zapisane`, type: 'success' });
     } else {
+      resData.status = "PENDING"; // Nowa rezerwacja ma domyślnie status oczekującej na gościa
       resData.feedback = "";
       resData.createdAt = Date.now();
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'reservations'), resData);
@@ -561,12 +593,17 @@ const App = () => {
                       {!showResForm ? (
                         <div className="space-y-8">
                           {upcomingResForSelected && (
-                            <div className="bg-amber-50 border-2 border-amber-200 p-4 rounded-2xl flex items-start gap-3 animate-pulse">
-                              <Lock className="text-amber-600 mt-1 flex-shrink-0" size={20} />
-                              <div>
-                                <p className="text-amber-800 font-black text-xs uppercase">Blokada rezerwacji</p>
-                                <p className="text-amber-700 text-[11px] font-medium leading-tight mt-1">Przygotuj stolik dla gościa <b>{upcomingResForSelected.name}</b> na godzinę <b>{upcomingResForSelected.time}</b>.</p>
+                            <div className="bg-amber-50 border-2 border-amber-200 p-4 rounded-2xl flex flex-col gap-4 animate-pulse">
+                              <div className="flex items-start gap-3">
+                                  <Lock className="text-amber-600 mt-1 flex-shrink-0" size={20} />
+                                  <div>
+                                    <p className="text-amber-800 font-black text-xs uppercase">Nadchodząca wizyta</p>
+                                    <p className="text-amber-700 text-[11px] font-medium leading-tight mt-1">Stolik oczekuje na gościa <b>{upcomingResForSelected.name}</b> (godz. <b>{upcomingResForSelected.time}</b>).</p>
+                                  </div>
                               </div>
+                              <button onClick={() => handleSeatGuest(upcomingResForSelected.id, selectedTableId)} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95">
+                                 <CheckCircle size={18} /> Posadź gościa (Zajmij live)
+                              </button>
                             </div>
                           )}
 
@@ -588,18 +625,23 @@ const App = () => {
                             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 px-1">Harmonogram stolika</h3>
                             <div className="space-y-3">
                               {currentDayReservations.filter(r => (r.tableIds || [r.tableId]).includes(selectedTableId)).map(res => (
-                                <div key={res.id} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden">
-                                  <div className={`absolute top-0 left-0 w-1.5 h-full ${upcomingResForSelected?.id === res.id ? 'bg-amber-500' : 'bg-indigo-500'}`}></div>
+                                <div key={res.id} className={`bg-white p-5 rounded-3xl border ${res.status === 'SEATED' ? 'border-emerald-200 shadow-emerald-50' : 'border-slate-200 shadow-sm'} hover:shadow-md transition-shadow group relative overflow-hidden`}>
+                                  <div className={`absolute top-0 left-0 w-1.5 h-full ${upcomingResForSelected?.id === res.id ? 'bg-amber-500' : res.status === 'SEATED' ? 'bg-emerald-500' : 'bg-indigo-500'}`}></div>
                                   <div className="flex justify-between items-start">
                                     <div className="space-y-1">
                                       <p className="font-black text-slate-800 text-base">{res.time} - {calculateEndTime(res.time, res.duration)}</p>
-                                      <div className="flex items-center gap-2 text-indigo-500">
+                                      <div className={`flex items-center gap-2 ${res.status === 'SEATED' ? 'text-emerald-600' : 'text-indigo-500'}`}>
                                         <p className="text-xs font-bold uppercase">{res.name}</p>
-                                        <span className="text-[10px] bg-indigo-50 px-1.5 rounded-md flex items-center gap-1"><Users size={10}/> {res.pax}</span>
+                                        <span className={`text-[10px] px-1.5 rounded-md flex items-center gap-1 ${res.status === 'SEATED' ? 'bg-emerald-50' : 'bg-indigo-50'}`}><Users size={10}/> {res.pax}</span>
                                       </div>
                                     </div>
                                     <button onClick={() => deleteReservation(res.id)} className="p-2 text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={20} /></button>
                                   </div>
+                                  {res.status === 'SEATED' && (
+                                    <div className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-emerald-600 uppercase bg-emerald-50 px-2 py-1 rounded-md">
+                                      <CheckCircle size={10} /> Gość obsłużony
+                                    </div>
+                                  )}
                                   {res.notes && (<div className="mt-3 flex gap-2 text-[11px] text-slate-500 italic bg-slate-50 p-2.5 rounded-xl border border-slate-100"><StickyNote size={14} className="flex-shrink-0 text-slate-400" /><span>{res.notes}</span></div>)}
                                   
                                   {/* Pokaż z czym ten stół jest połączony, jeśli to rezerwacja zbiorowa */}
@@ -733,9 +775,14 @@ const App = () => {
                                   const isEnd = timeToMinutes(resInSlot.time) + resInSlot.duration - 30 === slotMins;
 
                                   return (
-                                    <td key={t.id} className={`border-r border-slate-200 bg-red-500 p-0 relative ${isEnd ? 'border-b border-slate-200' : 'border-b border-red-600'}`}>
+                                    <td key={t.id} className={`border-r border-slate-200 ${resInSlot.status === 'SEATED' ? 'bg-emerald-500' : 'bg-red-500'} p-0 relative ${isEnd ? 'border-b border-slate-200' : resInSlot.status === 'SEATED' ? 'border-b border-emerald-600' : 'border-b border-red-600'}`}>
                                        <div className="w-full h-full min-h-[38px] flex items-center justify-center overflow-hidden">
-                                          {isStart && <span className="text-[8px] font-black text-white px-0.5 truncate absolute top-0.5 z-10 drop-shadow-md w-full text-center">{resInSlot.name}</span>}
+                                          {isStart && (
+                                              <span className="text-[8px] font-black text-white px-0.5 truncate absolute top-0.5 z-10 drop-shadow-md w-full text-center flex items-center justify-center gap-1">
+                                                {resInSlot.status === 'SEATED' && <CheckCircle size={8} className="shrink-0" />}
+                                                {resInSlot.name}
+                                              </span>
+                                          )}
                                        </div>
                                     </td>
                                   )
@@ -840,17 +887,24 @@ const App = () => {
                         <td className="py-7 px-6 font-black text-slate-700"><Users size={18} className="inline mr-2 text-slate-300"/> {res.pax}</td>
                         <td className="py-7 px-6 text-sm italic text-slate-500 max-w-xs">{res.notes || "-"}</td>
                         <td className="py-7 px-6">
-                           {editingCommentId === res.id ? (
-                             <div className="flex gap-2">
-                               <input type="text" value={tempComment} onChange={e=>setTempComment(e.target.value)} className="flex-1 px-4 py-2 rounded-xl border-2 border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm" placeholder="Wpisz komentarz..."/>
-                               <button onClick={()=>updateReservationFeedback(res.id, tempComment)} className="bg-indigo-600 text-white p-2 rounded-xl shadow-lg"><Save size={18}/></button>
-                             </div>
-                           ) : (
-                             <div className="flex items-center gap-3">
-                               {res.feedback ? (<p className="text-sm font-bold text-slate-700 bg-slate-100 px-4 py-2 rounded-2xl flex items-center gap-2"><MessageSquare size={14} className="text-indigo-400"/> {res.feedback}</p>) : (<span className="text-slate-300 text-xs italic">Brak komentarza po wizycie</span>)}
-                               <button onClick={()=>{setEditingCommentId(res.id); setTempComment(res.feedback || "");}} className="p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition-colors"><MessageSquare size={18}/></button>
-                             </div>
-                           )}
+                           <div className="flex flex-col gap-2">
+                             {res.status === 'SEATED' && (
+                               <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase px-2 py-1 rounded-md inline-flex items-center gap-1 w-max">
+                                 <CheckCircle size={10}/> Gość na miejscu
+                               </span>
+                             )}
+                             {editingCommentId === res.id ? (
+                               <div className="flex gap-2">
+                                 <input type="text" value={tempComment} onChange={e=>setTempComment(e.target.value)} className="flex-1 px-4 py-2 rounded-xl border-2 border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm" placeholder="Wpisz komentarz..."/>
+                                 <button onClick={()=>updateReservationFeedback(res.id, tempComment)} className="bg-indigo-600 text-white p-2 rounded-xl shadow-lg"><Save size={18}/></button>
+                               </div>
+                             ) : (
+                               <div className="flex items-center gap-3 mt-1">
+                                 {res.feedback ? (<p className="text-sm font-bold text-slate-700 bg-slate-100 px-4 py-2 rounded-2xl flex items-center gap-2"><MessageSquare size={14} className="text-indigo-400"/> {res.feedback}</p>) : (<span className="text-slate-300 text-xs italic">Brak komentarza</span>)}
+                                 <button onClick={()=>{setEditingCommentId(res.id); setTempComment(res.feedback || "");}} className="p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition-colors"><MessageSquare size={18}/></button>
+                               </div>
+                             )}
+                           </div>
                         </td>
                         <td className="py-7 px-6 text-right">
                           <button onClick={() => handleEditReservation(res)} className="p-3 text-slate-200 hover:text-indigo-500 opacity-0 group-hover:opacity-100 transition-all" title="Edytuj rezerwację"><Edit2 size={22}/></button>
