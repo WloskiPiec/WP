@@ -56,12 +56,10 @@ const myFirebaseConfig = {
   measurementId: "G-3W1KLG4H3S"
 };
 
-// Sztywno wymuszamy użycie Twojej bazy danych, ignorując środowisko testowe
 const app = initializeApp(myFirebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Stała ścieżka do Twojej bazy danych
 const appId = 'table-manager-wloskipiec';
 
 const TABLE_STATUSES = {
@@ -72,16 +70,13 @@ const TABLE_STATUSES = {
 };
 
 const INITIAL_TABLES_DATA = [
-  // --- GŁÓWNA SALA (FIZYCZNE STOŁY) ---
   { id: 10, number: '10', capacity: 6, minCapacity: 4, maxCapacity: 10, x: 40, y: 40, shape: 'rect' },
   { id: 11, number: '11', capacity: 4, minCapacity: 2, maxCapacity: 6, x: 180, y: 40, shape: 'rect' },
   { id: 12, number: '12', capacity: 4, minCapacity: 2, maxCapacity: 4, x: 320, y: 40, shape: 'rect' },
-  
   { id: 101, number: 'B1', capacity: 1, minCapacity: 1, maxCapacity: 1, x: 480, y: 160, shape: 'round', type: 'bar' },
   { id: 102, number: 'B2', capacity: 1, minCapacity: 1, maxCapacity: 1, x: 540, y: 160, shape: 'round', type: 'bar' },
   { id: 103, number: 'B3', capacity: 1, minCapacity: 1, maxCapacity: 1, x: 600, y: 160, shape: 'round', type: 'bar' },
   { id: 104, number: 'B4', capacity: 1, minCapacity: 1, maxCapacity: 1, x: 660, y: 160, shape: 'round', type: 'bar' },
-  
   { id: 13, number: '13', capacity: 2, minCapacity: 2, maxCapacity: 3, x: 140, y: 320, shape: 'rect' },
   { id: 20, number: '20', capacity: 2, minCapacity: 2, maxCapacity: 3, x: 260, y: 320, shape: 'rect' },
   { id: 21, number: '21', capacity: 2, minCapacity: 2, maxCapacity: 3, x: 380, y: 320, shape: 'rect' },
@@ -102,8 +97,6 @@ const INITIAL_TABLES_DATA = [
   { id: 26, number: '26', capacity: 4, minCapacity: 2, maxCapacity: 6, x: 750, y: 600, shape: 'rect' },
   { id: 24, number: '24', capacity: 2, minCapacity: 2, maxCapacity: 3, x: 890, y: 480, shape: 'round' },
   { id: 25, number: '25', capacity: 2, minCapacity: 2, maxCapacity: 3, x: 890, y: 600, shape: 'round' },
-
-  // --- STREFA WIRTUALNA (POŁÓWKI STOŁÓW - zgodnie z plikiem) ---
   { id: 910, number: '10A', capacity: 2, minCapacity: 2, maxCapacity: 2, x: 40, y: 900, shape: 'rect', type: 'virtual', width: 'w-16' },
   { id: 911, number: '11A', capacity: 3, minCapacity: 3, maxCapacity: 3, x: 120, y: 900, shape: 'rect', type: 'virtual', width: 'w-16' },
   { id: 912, number: '12A', capacity: 2, minCapacity: 2, maxCapacity: 2, x: 200, y: 900, shape: 'rect', type: 'virtual', width: 'w-16' },
@@ -130,7 +123,6 @@ const timeToMinutes = (timeStr) => {
   return h * 60 + m;
 };
 
-// Fizyczne grupy, które można łączyć ze sobą na sali
 const COMBINABLE_GROUPS = [
   [10, 11, 12],
   [15, 30, 31],
@@ -145,7 +137,7 @@ const getAssignedTableNumbers = (res) => {
 
 const App = () => {
   const [user, setUser] = useState(null);
-  const [activeView, setActiveView] = useState('floor'); // floor, timeline, add-reservation, reservations, guests
+  const [activeView, setActiveView] = useState('floor');
   const [reservations, setReservations] = useState([]);
   const [tableStates, setTableStates] = useState({});
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -155,7 +147,6 @@ const App = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Reservation form states
   const [resTableIds, setResTableIds] = useState([]);
   const [resTime, setResTime] = useState("18:00");
   const [resDuration, setResDuration] = useState(120);
@@ -168,7 +159,6 @@ const App = () => {
   const [tempComment, setTempComment] = useState("");
   const [editingResId, setEditingResId] = useState(null);
 
-  // --- AUTORYZACJA ---
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -180,10 +170,8 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
-  // --- DANE W CZASIE RZECZYWISTYM ---
   useEffect(() => {
     if (!user) return;
-
     try {
       const resRef = collection(db, 'artifacts', appId, 'public', 'data', 'reservations');
       const unsubRes = onSnapshot(resRef, 
@@ -227,11 +215,9 @@ const App = () => {
     [reservations, selectedDate]
   );
 
-  // Obliczanie gości obecnych w lokalu w danej chwili (NA ŻYWO)
   const liveGuestsCount = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
     const nowMins = currentTime.getHours() * 60 + currentTime.getMinutes();
-    
     return reservations.filter(r => {
       if (r.date !== todayStr) return false;
       const rStart = timeToMinutes(r.time);
@@ -246,36 +232,28 @@ const App = () => {
       const phone = r.phone?.trim() || "Brak numeru";
       const name = r.name?.trim() || "Nieznany";
       const key = `${name.toLowerCase()}_${phone.toLowerCase()}`;
-      
       if (!guests[key]) {
         guests[key] = { idKey: key, name: r.name, phone: phone, lastVisit: r.date, visitCount: 0, allVisits: [] };
       }
-      
       guests[key].visitCount += 1;
       guests[key].allVisits.push({ date: r.date, notes: r.notes, feedback: r.feedback, pax: r.pax, id: r.id, time: r.time });
-
       if (new Date(r.date) >= new Date(guests[key].lastVisit)) {
         guests[key].name = r.name;
         guests[key].lastVisit = r.date;
       }
     });
-
     return Object.values(guests).filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()) || g.phone.includes(searchTerm)).sort((a,b) => b.visitCount - a.visitCount);
   }, [reservations, searchTerm]);
 
   const getUpcomingReservation = (tableId) => {
     const today = new Date().toISOString().split('T')[0];
     if (selectedDate !== today) return null;
-    
-    // Filtrujemy tylko te rezerwacje, w których goście JESZCZE NIE SĄ posadzeni
     const tableRes = currentDayReservations.filter(r => (r.tableIds || [r.tableId]).includes(tableId) && r.status !== 'SEATED');
     if (tableRes.length === 0) return null;
-    
     const nowMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
     return tableRes.find(res => {
       const resMinutes = timeToMinutes(res.time);
       const diff = resMinutes - nowMinutes;
-      // Rezerwacja blokuje stół od 30 min przed planowaną wizytą do 60 min po (jeśli gość się spóźnia)
       return diff >= -30 && diff <= 60;
     });
   };
@@ -291,34 +269,22 @@ const App = () => {
     setNotification({ message: `Status stolika zaktualizowany`, type: 'success' });
   };
 
-  // Nowa funkcja do akceptowania gościa przybywającego na rezerwację
   const handleSeatGuest = async (resId, tableId) => {
     if (!user) return;
     const resData = reservations.find(r => r.id === resId);
     if (!resData) return;
-    
     const tablesToUpdate = resData.tableIds || [tableId];
-    
     try {
-      // 1. Zaktualizuj status samej rezerwacji w bazie na 'SEATED' (gość obecny)
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'reservations', resId), { status: 'SEATED' });
-      
-      // 2. Zaktualizuj fizyczny status stołu (lub połączonych stołów) na 'Zajęty' (OCCUPIED)
       for (let tId of tablesToUpdate) {
-          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tableStates', String(tId)), { 
-              status: 'OCCUPIED', 
-              occupiedSince: Date.now() 
-          });
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tableStates', String(tId)), { status: 'OCCUPIED', occupiedSince: Date.now() });
       }
-      
       setNotification({ message: `Gość z rezerwacji został posadzony!`, type: 'success' });
     } catch (err) {
       console.error("Błąd podczas sadzania gościa:", err);
-      setNotification({ message: `Błąd komunikacji z bazą.`, type: 'warning' });
     }
   };
 
-  // Automatyczne dopasowanie ilości osób po wyborze stolika
   const handleTableSelectionChange = (newIds) => {
     setResTableIds(newIds);
     const totalCap = newIds.reduce((sum, tid) => sum + (INITIAL_TABLES_DATA.find(t=>t.id===tid)?.capacity || 0), 0);
@@ -353,56 +319,42 @@ const App = () => {
       setNotification({ message: `Proszę wybrać przynajmniej jeden stolik!`, type: 'warning' });
       return;
     }
-
     const newStart = timeToMinutes(resTime);
     const newEnd = newStart + parseInt(resDuration);
-
     const hasConflict = reservations.some(r => {
       if (r.date !== selectedDate) return false;
-      if (editingResId && r.id === editingResId) return false; // Pomija sprawdzanie kolizji z samym sobą podczas edycji
-      
+      if (editingResId && r.id === editingResId) return false;
       const rTables = r.tableIds || [r.tableId];
       const intersects = rTables.some(tid => resTableIds.includes(tid));
       if (!intersects) return false;
-      
       const existStart = timeToMinutes(r.time);
       const existEnd = existStart + parseInt(r.duration);
       return newStart < existEnd && newEnd > existStart;
     });
-
     if (hasConflict) {
       setNotification({ message: `Błąd! Przynajmniej jeden ze stolików jest już zajęty w tym czasie.`, type: 'warning' });
       return;
     }
-
-    const resData = { 
-      tableIds: resTableIds, date: selectedDate, time: resTime, duration: parseInt(resDuration), 
-      name: resName || "Klient", phone: resPhone || "Brak numeru", pax: parseInt(resPax) || 2,
-      notes: resNotes || ""
-    };
-
+    const resData = { tableIds: resTableIds, date: selectedDate, time: resTime, duration: parseInt(resDuration), name: resName || "Klient", phone: resPhone || "Brak numeru", pax: parseInt(resPax) || 2, notes: resNotes || "" };
     if (editingResId) {
-      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reservations', editingResId);
-      await updateDoc(docRef, resData);
-      setNotification({ message: `Zmiany w rezerwacji zostały zapisane`, type: 'success' });
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'reservations', editingResId), resData);
+      setNotification({ message: `Zmiany zapisane`, type: 'success' });
     } else {
-      resData.status = "PENDING"; // Nowa rezerwacja ma domyślnie status oczekującej na gościa
+      resData.status = "PENDING";
       resData.feedback = "";
       resData.createdAt = Date.now();
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'reservations'), resData);
-      setNotification({ message: `Rezerwacja dodana poprawnie`, type: 'success' });
+      setNotification({ message: `Rezerwacja dodana`, type: 'success' });
     }
-    
     resetForm();
     if (activeView === 'add-reservation') setActiveView('reservations');
   };
 
   const updateReservationFeedback = async (resId, feedback) => {
     if (!user) return;
-    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reservations', resId);
-    await updateDoc(docRef, { feedback });
+    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'reservations', resId), { feedback });
     setEditingCommentId(null);
-    setNotification({ message: `Komentarz został zapisany`, type: 'success' });
+    setNotification({ message: `Zapisano`, type: 'success' });
   };
 
   const deleteReservation = async (id) => {
@@ -443,42 +395,54 @@ const App = () => {
 
   const sortedTablesForTimeline = [...INITIAL_TABLES_DATA].sort((a, b) => {
     const getWeight = (t) => {
-      if (t.type === 'bar') return 2; // Krzesła barowe na sam koniec
-      if (t.type === 'virtual') return 1; // Wirtualne przed barowymi
-      return 0; // Zwykłe stoły jako pierwsze
+      if (t.type === 'bar') return 2;
+      if (t.type === 'virtual') return 1;
+      return 0;
     };
-    
     const weightA = getWeight(a);
     const weightB = getWeight(b);
-    
-    // Najpierw sortujemy po grupie (zwykłe -> wirtualne -> barowe)
-    if (weightA !== weightB) {
-      return weightA - weightB;
-    }
-    
-    // Potem sortujemy liczbowo w obrębie danej grupy
+    if (weightA !== weightB) return weightA - weightB;
     const numA = parseInt(String(a.number).replace(/\D/g, '')) || 999;
     const numB = parseInt(String(b.number).replace(/\D/g, '')) || 999;
     return numA - numB;
   });
 
+  const unavailableTableIds = useMemo(() => {
+    const start = timeToMinutes(resTime);
+    const end = start + parseInt(resDuration);
+    const occupied = new Set();
+    currentDayReservations.forEach(r => {
+      if (editingResId && r.id === editingResId) return;
+      const rStart = timeToMinutes(r.time);
+      const rEnd = rStart + r.duration;
+      if (rStart < end && rEnd > start) {
+        (r.tableIds || [r.tableId]).forEach(id => occupied.add(id));
+      }
+    });
+    return Array.from(occupied);
+  }, [resTime, resDuration, currentDayReservations, editingResId]);
+
   const tableOptions = [
-    { v: "", l: "-- Wybierz stolik --" },
-    ...INITIAL_TABLES_DATA.map(t => ({ 
-      v: t.id, 
-      l: `${t.type === 'virtual' ? 'Wirtualny ' : 'Stół '} ${t.number} (od ${t.minCapacity} do ${t.maxCapacity} os.)` 
-    }))
+    { v: "", l: "-- Wybierz stolik --", disabled: false },
+    ...INITIAL_TABLES_DATA.map(t => {
+      const isOccupied = unavailableTableIds.includes(t.id);
+      return { 
+        v: t.id, 
+        l: isOccupied 
+          ? `❌ ${t.type === 'virtual' ? 'Wirtualny ' : 'Stół '} ${t.number} - ZAJĘTY` 
+          : `✅ ${t.type === 'virtual' ? 'Wirtualny ' : 'Stół '} ${t.number} (od ${t.minCapacity} do ${t.maxCapacity} os.)`,
+        disabled: isOccupied
+      };
+    })
   ];
 
-  // Wyliczanie połączonych widełek dla zabezpieczenia formularza
-  const currentMaxCap = resTableIds.length > 0 
-    ? resTableIds.reduce((sum, tid) => sum + (INITIAL_TABLES_DATA.find(t=>t.id===tid)?.maxCapacity || 0), 0) 
-    : 50;
-  const currentMinCap = resTableIds.length > 0 
-    ? resTableIds.reduce((sum, tid) => sum + (INITIAL_TABLES_DATA.find(t=>t.id===tid)?.minCapacity || 1), 0) 
-    : 1;
+  const currentMaxCap = resTableIds.length > 0 ? resTableIds.reduce((sum, tid) => sum + (INITIAL_TABLES_DATA.find(t=>t.id===tid)?.maxCapacity || 0), 0) : 50;
+  const currentMinCap = resTableIds.length > 0 ? resTableIds.reduce((sum, tid) => sum + (INITIAL_TABLES_DATA.find(t=>t.id===tid)?.minCapacity || 1), 0) : 1;
 
-  if (!user) return <div className="flex items-center justify-center h-screen font-bold text-slate-400 italic">Łączenie z bazą danych...</div>;
+  if (!user) return <div className="flex items-center justify-center h-screen font-bold text-slate-400 italic text-sm">Łączenie z bazą danych...</div>;
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isSelectedDateToday = selectedDate === todayStr;
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 font-sans flex flex-col">
@@ -491,19 +455,14 @@ const App = () => {
               <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Manager | Panel Sterowania</p>
             </div>
           </div>
-          
-          {/* LICZNIK NA ŻYWO */}
           <div className="hidden md:flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 shadow-sm ml-2">
             <div className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
             </div>
-            <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest whitespace-nowrap">
-              Na żywo: {liveGuestsCount} os.
-            </span>
+            <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest whitespace-nowrap">Na żywo: {liveGuestsCount} os.</span>
           </div>
         </div>
-
         <div className="flex items-center bg-slate-50 p-1.5 rounded-2xl border border-slate-200">
           <button onClick={() => changeDate(-1)} className="p-2.5 hover:bg-white hover:shadow-md rounded-xl transition-all text-slate-600"><ChevronLeft size={22} /></button>
           <div className="px-6 flex items-center gap-4 border-x border-slate-200 mx-2">
@@ -512,7 +471,6 @@ const App = () => {
           </div>
           <button onClick={() => changeDate(1)} className="p-2.5 hover:bg-white hover:shadow-md rounded-xl transition-all text-slate-600"><ChevronRight size={22} /></button>
         </div>
-
         <nav className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-200 overflow-x-auto">
           <NavBtn active={activeView === 'floor'} onClick={() => setActiveView('floor')} icon={<LayoutDashboard size={18}/>} label="Plan Sali" />
           <NavBtn active={activeView === 'timeline'} onClick={() => setActiveView('timeline')} icon={<Grid3X3 size={18}/>} label="Grafik Czasowy" />
@@ -524,8 +482,6 @@ const App = () => {
 
       <main className="flex-1 p-8 flex flex-col">
         <div className="max-w-full mx-auto h-full w-full">
-          
-          {/* WIDOK 1: PLAN SALI */}
           {activeView === 'floor' && (
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 h-full">
               <div className="xl:col-span-9 bg-white rounded-[2.5rem] shadow-xl border border-slate-200 p-8 relative overflow-hidden flex flex-col">
@@ -538,43 +494,39 @@ const App = () => {
                     <LegendItem color="bg-emerald-500" label="Wolny" />
                     <LegendItem color="bg-rose-500" label="Zajęty" />
                     <LegendItem color="bg-amber-500" label="Rezerwacja" />
-                    <LegendItem color="border-2 border-dashed border-slate-400 bg-slate-100" label="Wirtualny (Połówka)" />
+                    <LegendItem color="border-2 border-dashed border-slate-400 bg-slate-100" label="Wirtualny" />
                   </div>
                 </div>
-
                 <div className="relative flex-1 bg-slate-50 rounded-3xl border border-slate-100 overflow-auto shadow-inner p-10 min-h-[1050px]">
-                  
-                  {/* Nagłówek dla strefy wirtualnej */}
                   <div className="absolute font-black text-slate-300 uppercase text-xs tracking-widest border-b-2 border-slate-200 pb-3 flex items-center gap-2" style={{left: 40, top: 850, width: '850px'}}>
-                    <Ghost size={18} /> Strefa Wirtualna (Ukryte Dostawki i Połówki do rezerwacji osobno)
+                    <Ghost size={18} /> Strefa Wirtualna
                   </div>
-
                   {INITIAL_TABLES_DATA.map(table => {
                     const tableRes = currentDayReservations.filter(r => (r.tableIds || [r.tableId]).includes(table.id));
-                    const state = tableStates[table.id] || { status: 'AVAILABLE' };
+                    
+                    // KLUCZOWA LOGIKA: Status live (czerwony/niebieski) pokazuje się tylko gdy wybrany dzień to DZISIAJ
+                    const state = isSelectedDateToday ? (tableStates[table.id] || { status: 'AVAILABLE' }) : { status: 'AVAILABLE' };
+                    
                     const occupancyTime = getOccupancyTime(state.occupiedSince);
                     const isUpcoming = getUpcomingReservation(table.id);
                     let statusColor = TABLE_STATUSES[state.status].color;
                     if (tableRes.length > 0) statusColor = TABLE_STATUSES.RESERVED.color;
-                    
                     const isVirtual = table.type === 'virtual';
                     const size = table.size || (table.type === 'bar' ? 'w-14 h-14' : table.type === 'booth' ? 'w-32 h-32' : `${table.width || 'w-24'} h-20`);
                     const shape = table.shape === 'round' ? 'rounded-full' : table.type === 'booth' ? 'rounded-tr-[3.5rem] rounded-bl-[3.5rem]' : 'rounded-2xl';
                     const borderStyle = isVirtual ? 'border-2 border-dashed border-white/60 shadow-none opacity-90' : 'shadow-2xl';
-
                     return (
                       <button key={table.id} onClick={() => { setSelectedTableId(table.id); setShowResForm(false); }} style={{ left: table.x, top: table.y }}
                         className={`absolute ${size} ${shape} flex flex-col items-center justify-center text-white transition-all transform hover:scale-105 active:scale-95 z-10 ${statusColor} ${borderStyle} ${selectedTableId === table.id ? 'ring-8 ring-indigo-200 ring-offset-4' : ''} ${isUpcoming ? 'ring-4 ring-amber-400 animate-pulse ring-offset-2' : ''}`}
                       >
                         <span className={`${isVirtual ? 'text-lg' : 'text-2xl'} font-black leading-none mb-1`}>{table.number}</span>
                         <div className="flex items-center gap-1.5 opacity-80 font-bold text-[10px]"><Users size={12} /><span>{table.capacity}</span></div>
-                        {state.status === 'OCCUPIED' && occupancyTime && (<div className="absolute -bottom-2 bg-white text-rose-600 rounded-full px-2.5 py-1 text-[10px] font-black border border-rose-100 shadow-lg whitespace-nowrap">{occupancyTime}</div>)}
+                        {state.status === 'OCCUPIED' && occupancyTime && isSelectedDateToday && (<div className="absolute -bottom-2 bg-white text-rose-600 rounded-full px-2.5 py-1 text-[10px] font-black border border-rose-100 shadow-lg whitespace-nowrap">{occupancyTime}</div>)}
                         {tableRes.length > 0 && (<div className="absolute -top-2 -right-2 bg-white rounded-full p-1.5 border border-slate-100 shadow-lg"><Clock size={16} className={`${isUpcoming ? 'text-amber-600 animate-bounce' : 'text-amber-500'}`} /></div>)}
                       </button>
                     )})}
                 </div>
               </div>
-
               <div className="xl:col-span-3">
                 <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-200 p-8 h-full flex flex-col overflow-y-auto">
                   {selectedTableId ? (
@@ -583,16 +535,12 @@ const App = () => {
                         <div>
                           <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase leading-none">Stół {selectedTableData?.number}</h2>
                           <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Domyślnie: {selectedTableData?.capacity} os. (od {selectedTableData?.minCapacity} do {selectedTableData?.maxCapacity})</p>
-                          {selectedTableData?.type === 'virtual' && (
-                            <p className="text-indigo-500 text-[10px] font-black uppercase mt-1 bg-indigo-50 inline-block px-2 py-1 rounded-md">Połówka / Dostawka</p>
-                          )}
                         </div>
                         <button onClick={() => setSelectedTableId(null)} className="p-2.5 hover:bg-slate-50 rounded-2xl transition-colors text-slate-300 hover:text-slate-600"><X size={24}/></button>
                       </div>
-
                       {!showResForm ? (
                         <div className="space-y-8">
-                          {upcomingResForSelected && (
+                          {upcomingResForSelected && isSelectedDateToday && (
                             <div className="bg-amber-50 border-2 border-amber-200 p-4 rounded-2xl flex flex-col gap-4 animate-pulse">
                               <div className="flex items-start gap-3">
                                   <Lock className="text-amber-600 mt-1 flex-shrink-0" size={20} />
@@ -606,21 +554,19 @@ const App = () => {
                               </button>
                             </div>
                           )}
-
                           <div className="bg-slate-50 p-6 rounded-[2rem] space-y-6">
-                            <button onClick={() => updateTableManualStatus(selectedTableId, 'OCCUPIED')} disabled={!!upcomingResForSelected}
-                              className={`w-full py-6 rounded-2xl font-black text-sm uppercase flex flex-col items-center gap-2 transition-all shadow-sm ${upcomingResForSelected ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-60' : tableStates[selectedTableId]?.status === 'OCCUPIED' ? 'bg-rose-500 text-white shadow-rose-200' : 'bg-white border border-slate-200 text-slate-600 hover:border-rose-300'}`}
+                            <button onClick={() => updateTableManualStatus(selectedTableId, 'OCCUPIED')} disabled={!!upcomingResForSelected || !isSelectedDateToday}
+                              className={`w-full py-6 rounded-2xl font-black text-sm uppercase flex flex-col items-center gap-2 transition-all shadow-sm ${(!isSelectedDateToday || upcomingResForSelected) ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-60' : tableStates[selectedTableId]?.status === 'OCCUPIED' ? 'bg-rose-500 text-white shadow-rose-200' : 'bg-white border border-slate-200 text-slate-600 hover:border-rose-300'}`}
                             >
                               <Clock size={24} />Zajmij Live
-                              {tableStates[selectedTableId]?.status === 'OCCUPIED' && <span className="opacity-80 text-[11px]">Od: {getOccupancyTime(tableStates[selectedTableId].occupiedSince)}</span>}
+                              {tableStates[selectedTableId]?.status === 'OCCUPIED' && isSelectedDateToday && <span className="opacity-80 text-[11px]">Od: {getOccupancyTime(tableStates[selectedTableId].occupiedSince)}</span>}
                             </button>
                             <div className="grid grid-cols-2 gap-3">
                               {['AVAILABLE', 'CLEANING'].map(sid => (
-                                <button key={sid} onClick={() => updateTableManualStatus(selectedTableId, sid)} className={`py-4 rounded-xl text-[10px] font-black uppercase border transition-all ${tableStates[selectedTableId]?.status === sid ? 'bg-slate-800 text-white shadow-lg' : 'bg-white text-slate-500 border-slate-200'}`}>{TABLE_STATUSES[sid].label}</button>
+                                <button key={sid} onClick={() => updateTableManualStatus(selectedTableId, sid)} disabled={!isSelectedDateToday} className={`py-4 rounded-xl text-[10px] font-black uppercase border transition-all ${!isSelectedDateToday ? 'bg-slate-100 text-slate-300 border-slate-100 cursor-not-allowed' : tableStates[selectedTableId]?.status === sid ? 'bg-slate-800 text-white shadow-lg' : 'bg-white text-slate-500 border-slate-200'}`}>{TABLE_STATUSES[sid].label}</button>
                               ))}
                             </div>
                           </div>
-
                           <div className="space-y-4">
                             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 px-1">Harmonogram stolika</h3>
                             <div className="space-y-3">
@@ -637,55 +583,28 @@ const App = () => {
                                     </div>
                                     <button onClick={() => deleteReservation(res.id)} className="p-2 text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={20} /></button>
                                   </div>
-                                  {res.status === 'SEATED' && (
-                                    <div className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-emerald-600 uppercase bg-emerald-50 px-2 py-1 rounded-md">
-                                      <CheckCircle size={10} /> Gość obsłużony
-                                    </div>
-                                  )}
+                                  {res.status === 'SEATED' && (<div className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-emerald-600 uppercase bg-emerald-50 px-2 py-1 rounded-md"><CheckCircle size={10} /> Gość obsłużony</div>)}
                                   {res.notes && (<div className="mt-3 flex gap-2 text-[11px] text-slate-500 italic bg-slate-50 p-2.5 rounded-xl border border-slate-100"><StickyNote size={14} className="flex-shrink-0 text-slate-400" /><span>{res.notes}</span></div>)}
-                                  
-                                  {/* Pokaż z czym ten stół jest połączony, jeśli to rezerwacja zbiorowa */}
-                                  {(res.tableIds?.length > 1) && (
-                                    <div className="mt-2 text-[9px] font-black text-slate-400 uppercase border-t border-slate-100 pt-2">
-                                      Łączony: Stół {getAssignedTableNumbers(res)}
-                                    </div>
-                                  )}
                                 </div>
                               ))}
                               {currentDayReservations.filter(r => (r.tableIds || [r.tableId]).includes(selectedTableId)).length === 0 && (<div className="text-center py-10 bg-slate-50 rounded-3xl border border-dashed border-slate-200"><p className="text-[11px] font-black text-slate-300 uppercase">Dziś brak planów</p></div>)}
                             </div>
-                            <button onClick={() => { 
-                              resetForm();
-                              setShowResForm(true); 
-                              handleTableSelectionChange([selectedTableId]); 
-                            }} className="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl text-sm uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 active:scale-95 flex items-center justify-center gap-3"><Plus size={22} /> Rezerwuj stolik</button>
+                            <button onClick={() => { resetForm(); setShowResForm(true); handleTableSelectionChange([selectedTableId]); }} className="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl text-sm uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 active:scale-95 flex items-center justify-center gap-3"><Plus size={22} /> Rezerwuj stolik</button>
                           </div>
                         </div>
                       ) : (
                         <div className="space-y-6 animate-in slide-in-from-right-8 duration-500 pb-10">
                            <div className="bg-slate-50 p-6 rounded-[2rem] space-y-5">
                               <InputGroup label="Godzina przyjścia" type="select" value={resTime} onChange={e=>setResTime(e.target.value)} options={TIME_OPTIONS} />
-                              <InputGroup label="Długość wizyty" type="select" value={resDuration} onChange={e=>setResDuration(e.target.value)} options={[
-                                {v: 60, l: '1 godzina'}, {v: 90, l: '1.5 godziny'}, {v: 120, l: '2 godziny (standard)'}, {v: 150, l: '2.5 godziny'}, {v: 180, l: '3 godziny'}, {v: 240, l: '4 godziny (limit)'}
-                              ]} />
+                              <InputGroup label="Długość wizyty" type="select" value={resDuration} onChange={e=>setResDuration(e.target.value)} options={[{v: 60, l: '1 godzina'}, {v: 90, l: '1.5 godziny'}, {v: 120, l: '2 godziny (standard)'}, {v: 150, l: '2.5 godziny'}, {v: 180, l: '3 godziny'}, {v: 240, l: '4 godziny (limit)'}]} />
                            </div>
                            <div className="bg-white p-6 rounded-[2rem] border border-slate-200 space-y-5">
                               <InputGroup label="Imię i Nazwisko" type="text" placeholder="Np. Kowalski" value={resName} onChange={e=>setResName(e.target.value)} />
                               <InputGroup label="Telefon Kontaktowy" type="tel" placeholder="+48 ___ ___ ___" value={resPhone} onChange={e=>setResPhone(e.target.value)} />
-                              <InputGroup 
-                                label={`Liczba gości`} 
-                                type="number" 
-                                value={resPax} 
-                                onChange={e=>setResPax(e.target.value)} 
-                                min={currentMinCap} 
-                                max={currentMaxCap} 
-                                helperText={resTableIds.length > 0 ? `Od ${currentMinCap} do ${currentMaxCap} os.` : ''}
-                              />
+                              <InputGroup label={`Liczba gości`} type="number" value={resPax} onChange={e=>setResPax(e.target.value)} min={currentMinCap} max={currentMaxCap} helperText={resTableIds.length > 0 ? `Od ${currentMinCap} do ${currentMaxCap} os.` : ''}/>
                               <InputGroup label="Uwagi / Życzenia specjalne" type="textarea" placeholder="Np. stolik przy oknie, alergie..." value={resNotes} onChange={e=>setResNotes(e.target.value)} />
                            </div>
-                           
-                           <MultiTableSelect selectedIds={resTableIds} onChange={handleTableSelectionChange} />
-                           
+                           <MultiTableSelect selectedIds={resTableIds} onChange={handleTableSelectionChange} unavailableIds={unavailableTableIds} />
                            <div className="flex gap-4">
                              <button onClick={resetForm} className="flex-1 py-5 text-[11px] font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Anuluj</button>
                              <button onClick={saveReservation} className="flex-[2] bg-indigo-600 text-white rounded-3xl py-5 font-black uppercase text-sm shadow-xl hover:shadow-indigo-200 transition-all">{editingResId ? "Zapisz Zmiany" : "Zatwierdź"}</button>
@@ -704,26 +623,20 @@ const App = () => {
             </div>
           )}
 
-          {/* WIDOK 2: GRAFIK CZASOWY (EXCEL-LIKE) */}
           {activeView === 'timeline' && (
             <div className="bg-white rounded-[3rem] shadow-xl border border-slate-200 p-8 flex flex-col animate-in fade-in duration-500">
                <div className="mb-6 flex justify-between items-center">
                   <div>
                     <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Grafik Czasowy</h2>
-                    <p className="text-slate-400 font-bold uppercase text-[11px] tracking-widest mt-1">Wizualny podgląd obłożenia: {selectedDate}</p>
+                    <p className="text-slate-400 font-bold uppercase text-[11px] tracking-widest mt-1">Podgląd obłożenia: {selectedDate}</p>
                   </div>
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
-                    Kliknij puste pole, aby dodać rezerwację
-                  </div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">Kliknij pole, aby zarezerwować</div>
                </div>
-               
                <div className="w-full max-h-[75vh] overflow-auto border border-slate-200 rounded-2xl relative shadow-inner bg-slate-50/50">
                   <table className="w-full border-collapse text-sm text-center">
                     <thead className="sticky top-0 z-30 bg-white shadow-sm">
                       <tr>
-                        <th className="sticky left-0 top-0 bg-white z-40 p-2 border-b border-r border-slate-200 w-16 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
-                          <Clock size={16} className="mx-auto text-slate-300" />
-                        </th>
+                        <th className="sticky left-0 top-0 bg-white z-40 p-2 border-b border-r border-slate-200 w-16 shadow-[2px_0_5px_rgba(0,0,0,0.02)]"><Clock size={16} className="mx-auto text-slate-300" /></th>
                         {sortedTablesForTimeline.map(t => (
                           <th key={t.id} className="p-1.5 border-b border-r border-slate-200 min-w-[50px] max-w-[65px]">
                              <p className="font-black text-slate-800 text-sm leading-none">{t.number}</p>
@@ -735,33 +648,20 @@ const App = () => {
                     <tbody>
                       {TIME_SLOTS.map(slotTime => {
                         const slotMins = timeToMinutes(slotTime);
-                        
-                        // Obliczanie całkowitej liczby gości w tym slocie czasowym
                         const guestsInSlot = currentDayReservations.reduce((sum, r) => {
                           const rStart = timeToMinutes(r.time);
                           const rEnd = rStart + r.duration;
-                          if (rStart <= slotMins && rEnd > slotMins) {
-                            return sum + r.pax;
-                          }
-                          return sum;
+                          return (rStart <= slotMins && rEnd > slotMins) ? sum + r.pax : sum;
                         }, 0);
-
                         return (
                           <tr key={slotTime} className="group">
                             <td className="sticky left-0 bg-white z-20 p-2 border-b border-r border-slate-200 shadow-[2px_0_5px_rgba(0,0,0,0.02)] align-middle">
                               <div className="flex flex-col items-center justify-center gap-1">
                                 <span className="font-black text-slate-500 text-[10px] md:text-xs leading-none">{slotTime}</span>
-                                {guestsInSlot > 0 ? (
-                                  <span className="text-[9px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md flex items-center gap-1 font-bold shadow-sm" title={`Gości w tym czasie: ${guestsInSlot}`}>
-                                    <Users size={8}/> {guestsInSlot}
-                                  </span>
-                                ) : (
-                                  <span className="text-[9px] text-transparent px-1.5 py-0.5">0</span>
-                                )}
+                                {guestsInSlot > 0 && <span className="text-[9px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md flex items-center gap-1 font-bold shadow-sm"><Users size={8}/> {guestsInSlot}</span>}
                               </div>
                             </td>
                             {sortedTablesForTimeline.map(t => {
-                               // Tu magia się dzieje - rTables to tablica wielu id połączonych stolików
                                const resInSlot = currentDayReservations.find(r => {
                                   const rTables = r.tableIds || [r.tableId];
                                   if (!rTables.includes(t.id)) return false;
@@ -769,34 +669,20 @@ const App = () => {
                                   const rEnd = rStart + r.duration;
                                   return rStart <= slotMins && rEnd > slotMins;
                                });
-
                                if (resInSlot) {
                                   const isStart = timeToMinutes(resInSlot.time) === slotMins;
                                   const isEnd = timeToMinutes(resInSlot.time) + resInSlot.duration - 30 === slotMins;
-
                                   return (
                                     <td key={t.id} className={`border-r border-slate-200 ${resInSlot.status === 'SEATED' ? 'bg-emerald-500' : 'bg-red-500'} p-0 relative ${isEnd ? 'border-b border-slate-200' : resInSlot.status === 'SEATED' ? 'border-b border-emerald-600' : 'border-b border-red-600'}`}>
                                        <div className="w-full h-full min-h-[38px] flex items-center justify-center overflow-hidden">
-                                          {isStart && (
-                                              <span className="text-[8px] font-black text-white px-0.5 truncate absolute top-0.5 z-10 drop-shadow-md w-full text-center flex items-center justify-center gap-1">
-                                                {resInSlot.status === 'SEATED' && <CheckCircle size={8} className="shrink-0" />}
-                                                {resInSlot.name}
-                                              </span>
-                                          )}
+                                          {isStart && <span className="text-[8px] font-black text-white px-0.5 truncate absolute top-0.5 z-10 drop-shadow-md w-full text-center flex items-center justify-center gap-1">{resInSlot.status === 'SEATED' && <CheckCircle size={8} />}{resInSlot.name}</span>}
                                        </div>
                                     </td>
                                   )
                                }
-
                                return (
-                                 <td 
-                                  key={t.id} 
-                                  className="border-b border-r border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors p-0"
-                                  onClick={() => handleTimelineClick(t.id, slotTime)}
-                                 >
-                                    <div className="w-full h-full min-h-[38px] opacity-0 group-hover:opacity-100 flex items-center justify-center text-slate-300">
-                                      <Plus size={14}/>
-                                    </div>
+                                 <td key={t.id} className="border-b border-r border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors p-0" onClick={() => handleTimelineClick(t.id, slotTime)}>
+                                    <div className="w-full h-full min-h-[38px] opacity-0 group-hover:opacity-100 flex items-center justify-center text-slate-300"><Plus size={14}/></div>
                                  </td>
                                );
                             })}
@@ -809,48 +695,31 @@ const App = () => {
             </div>
           )}
 
-          {/* WIDOK 3: NOWA REZERWACJA (PEŁNY EKRAN) */}
           {activeView === 'add-reservation' && (
             <div className="bg-white rounded-[3rem] shadow-xl border border-slate-200 p-10 h-full flex flex-col animate-in fade-in duration-500 max-w-5xl mx-auto overflow-y-auto">
               <div className="mb-10 text-center">
                 <h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase">{editingResId ? "Edytuj Rezerwację" : "Nowa Rezerwacja"}</h2>
-                <p className="text-slate-400 font-bold uppercase text-[11px] tracking-widest mt-2">Wybierany termin: {selectedDate}</p>
+                <p className="text-slate-400 font-bold uppercase text-[11px] tracking-widest mt-2">Termin: {selectedDate}</p>
               </div>
-              
               <div className="space-y-8 flex-1">
                  <div className="bg-slate-50 p-8 rounded-[2rem] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <InputGroup label="Wybierz stolik" type="select" value={resTableIds[0] || ""} onChange={e=>{
                       const val = e.target.value;
-                      if (!val) {
-                        handleTableSelectionChange([]);
-                      } else {
-                        handleTableSelectionChange([Number(val)]);
-                      }
+                      handleTableSelectionChange(val ? [Number(val)] : []);
                     }} options={tableOptions} />
-                    <InputGroup 
-                      label="Liczba gości" 
-                      type="number" 
-                      value={resPax} 
-                      onChange={e=>setResPax(e.target.value)} 
-                      min={currentMinCap} 
-                      max={currentMaxCap} 
-                      helperText={resTableIds.length > 0 ? `Od ${currentMinCap} do ${currentMaxCap} os.` : ''}
-                    />
+                    <InputGroup label="Liczba gości" type="number" value={resPax} onChange={e=>setResPax(e.target.value)} min={currentMinCap} max={currentMaxCap} helperText={resTableIds.length > 0 ? `Od ${currentMinCap} do ${currentMaxCap} os.` : ''} />
                     <InputGroup label="Godzina" type="select" value={resTime} onChange={e=>setResTime(e.target.value)} options={TIME_OPTIONS} />
                     <InputGroup label="Czas trwania" type="select" value={resDuration} onChange={e=>setResDuration(e.target.value)} options={[{v: 60, l: '1h'}, {v: 120, l: '2h'}, {v: 180, l: '3h'}, {v: 240, l: '4h'}]} />
                  </div>
-                 
                  <div className="bg-white p-8 rounded-[2rem] border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <InputGroup label="Imię i Nazwisko" type="text" placeholder="Np. Kowalski" value={resName} onChange={e=>setResName(e.target.value)} />
-                    <InputGroup label="Telefon Kontaktowy" type="tel" placeholder="+48 ___ ___ ___" value={resPhone} onChange={e=>setResPhone(e.target.value)} />
+                    <InputGroup label="Nr Telefonu" type="tel" placeholder="+48..." value={resPhone} onChange={e=>setResPhone(e.target.value)} />
                     <div className="md:col-span-2">
-                      <InputGroup label="Uwagi / Życzenia" type="textarea" placeholder="Specjalne życzenia..." value={resNotes} onChange={e=>setResNotes(e.target.value)} />
+                      <InputGroup label="Uwagi" type="textarea" placeholder="Życzenia specjalne..." value={resNotes} onChange={e=>setResNotes(e.target.value)} />
                     </div>
                  </div>
-
-                 <MultiTableSelect selectedIds={resTableIds} onChange={handleTableSelectionChange} />
+                 <MultiTableSelect selectedIds={resTableIds} onChange={handleTableSelectionChange} unavailableIds={unavailableTableIds} />
               </div>
-              
               <div className="mt-8 flex gap-4 justify-end">
                  <button onClick={() => { resetForm(); setActiveView('timeline'); }} className="px-8 py-5 text-[11px] font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Anuluj</button>
                  <button onClick={saveReservation} className="px-12 bg-indigo-600 text-white rounded-3xl py-5 font-black uppercase text-sm shadow-xl hover:shadow-indigo-200 transition-all flex items-center gap-2"><Plus size={18} /> {editingResId ? "Zapisz Zmiany" : "Dodaj Rezerwację"}</button>
@@ -858,7 +727,6 @@ const App = () => {
             </div>
           )}
 
-          {/* WIDOK 4: LISTA REZERWACJI */}
           {activeView === 'reservations' && (
             <div className="bg-white rounded-[3rem] shadow-xl border border-slate-200 p-10 h-full flex flex-col animate-in fade-in duration-500 text-wrap">
               <div className="mb-10"><h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase">Lista Rezerwacji</h2></div>
@@ -866,7 +734,7 @@ const App = () => {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="text-[11px] font-black text-slate-400 uppercase tracking-widest border-b-2 border-slate-100">
-                      <th className="pb-6 px-6">Godzina</th><th className="pb-6 px-6">Stół</th><th className="pb-6 px-6">Klient</th><th className="pb-6 px-6">Osób</th><th className="pb-6 px-6">Uwagi</th><th className="pb-6 px-6">Status / Komentarz</th><th className="pb-6 px-6 text-right">Zarządzaj</th>
+                      <th className="pb-6 px-6">Godzina</th><th className="pb-6 px-6">Stół</th><th className="pb-6 px-6">Klient</th><th className="pb-6 px-6">Osób</th><th className="pb-6 px-6">Uwagi</th><th className="pb-6 px-6">Status</th><th className="pb-6 px-6 text-right">Akcje</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -875,117 +743,77 @@ const App = () => {
                         <td className="py-7 px-6">
                           <div className="flex flex-col">
                             <span className="font-black text-slate-800 text-lg">{res.time}</span>
-                            <span className="text-[10px] text-slate-400 font-bold">Koniec: {calculateEndTime(res.time, res.duration)}</span>
+                            <span className="text-[10px] text-slate-400 font-bold">Do {calculateEndTime(res.time, res.duration)}</span>
                           </div>
                         </td>
-                        <td className="py-7 px-6">
-                          <span className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl font-black text-sm uppercase">
-                            Stół {getAssignedTableNumbers(res)}
-                          </span>
-                        </td>
+                        <td className="py-7 px-6"><span className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl font-black text-sm uppercase">Stół {getAssignedTableNumbers(res)}</span></td>
                         <td className="py-7 px-6"><div><p className="font-black text-slate-800">{res.name}</p><p className="text-xs font-bold text-slate-400">{res.phone}</p></div></td>
                         <td className="py-7 px-6 font-black text-slate-700"><Users size={18} className="inline mr-2 text-slate-300"/> {res.pax}</td>
                         <td className="py-7 px-6 text-sm italic text-slate-500 max-w-xs">{res.notes || "-"}</td>
                         <td className="py-7 px-6">
                            <div className="flex flex-col gap-2">
-                             {res.status === 'SEATED' && (
-                               <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase px-2 py-1 rounded-md inline-flex items-center gap-1 w-max">
-                                 <CheckCircle size={10}/> Gość na miejscu
-                               </span>
-                             )}
+                             {res.status === 'SEATED' && <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase px-2 py-1 rounded-md inline-flex items-center gap-1 w-max"><CheckCircle size={10}/> Na miejscu</span>}
                              {editingCommentId === res.id ? (
                                <div className="flex gap-2">
-                                 <input type="text" value={tempComment} onChange={e=>setTempComment(e.target.value)} className="flex-1 px-4 py-2 rounded-xl border-2 border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm" placeholder="Wpisz komentarz..."/>
-                                 <button onClick={()=>updateReservationFeedback(res.id, tempComment)} className="bg-indigo-600 text-white p-2 rounded-xl shadow-lg"><Save size={18}/></button>
+                                 <input type="text" value={tempComment} onChange={e=>setTempComment(e.target.value)} className="flex-1 px-4 py-2 rounded-xl border-2 border-indigo-200 outline-none font-bold text-sm" placeholder="Komentarz..."/>
+                                 <button onClick={()=>updateReservationFeedback(res.id, tempComment)} className="bg-indigo-600 text-white p-2 rounded-xl"><Save size={18}/></button>
                                </div>
                              ) : (
-                               <div className="flex items-center gap-3 mt-1">
-                                 {res.feedback ? (<p className="text-sm font-bold text-slate-700 bg-slate-100 px-4 py-2 rounded-2xl flex items-center gap-2"><MessageSquare size={14} className="text-indigo-400"/> {res.feedback}</p>) : (<span className="text-slate-300 text-xs italic">Brak komentarza</span>)}
-                                 <button onClick={()=>{setEditingCommentId(res.id); setTempComment(res.feedback || "");}} className="p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition-colors"><MessageSquare size={18}/></button>
+                               <div className="flex items-center gap-3">
+                                 {res.feedback ? (<p className="text-sm font-bold text-slate-700 bg-slate-100 px-4 py-2 rounded-2xl flex items-center gap-2"><MessageSquare size={14} className="text-indigo-400"/> {res.feedback}</p>) : (<span className="text-slate-300 text-xs italic">Brak uwag</span>)}
+                                 <button onClick={()=>{setEditingCommentId(res.id); setTempComment(res.feedback || "");}} className="p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg"><MessageSquare size={18}/></button>
                                </div>
                              )}
                            </div>
                         </td>
                         <td className="py-7 px-6 text-right">
-                          <button onClick={() => handleEditReservation(res)} className="p-3 text-slate-200 hover:text-indigo-500 opacity-0 group-hover:opacity-100 transition-all" title="Edytuj rezerwację"><Edit2 size={22}/></button>
-                          <button onClick={() => deleteReservation(res.id)} className="p-3 text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all" title="Usuń rezerwację"><Trash2 size={22}/></button>
+                          <button onClick={() => handleEditReservation(res)} className="p-3 text-slate-200 hover:text-indigo-500 opacity-0 group-hover:opacity-100 transition-all"><Edit2 size={22}/></button>
+                          <button onClick={() => deleteReservation(res.id)} className="p-3 text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={22}/></button>
                         </td>
                       </tr>
                     ))}
-                    {currentDayReservations.length === 0 && (
-                      <tr><td colSpan="7" className="py-32 text-center text-slate-400 font-bold text-lg uppercase tracking-widest italic opacity-40">Brak zaplanowanych rezerwacji</td></tr>
-                    )}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
 
-          {/* WIDOK 5: BAZA GOŚCI (TABELA) */}
           {activeView === 'guests' && (
             <div className="bg-white rounded-[3rem] shadow-xl border border-slate-200 p-10 h-full flex flex-col animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
-                <h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase">Baza Danych Gości</h2>
+                <h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase">Baza Gości</h2>
                 <div className="relative w-full md:w-[32rem]">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={24}/>
-                  <input type="text" placeholder="Szukaj gościa..." className="w-full pl-12 pr-6 py-4 rounded-[1.5rem] bg-slate-50 border-2 border-slate-100 outline-none focus:border-indigo-500 font-bold text-lg transition-all" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                  <input type="text" placeholder="Szukaj..." className="w-full pl-12 pr-6 py-4 rounded-[1.5rem] bg-slate-50 border-2 border-slate-100 outline-none focus:border-indigo-500 font-bold text-lg" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                 </div>
               </div>
               <div className="flex-1 overflow-auto rounded-[2rem] border border-slate-200">
-                <table className="w-full text-left border-collapse min-w-[800px]">
+                <table className="w-full text-left">
                   <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                     <tr className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                      <th className="py-5 px-6 border-b border-slate-200">Gość</th>
-                      <th className="py-5 px-6 border-b border-slate-200">Telefon</th>
-                      <th className="py-5 px-6 border-b border-slate-200">Liczba wizyt</th>
-                      <th className="py-5 px-6 border-b border-slate-200">Ostatnia wizyta</th>
-                      <th className="py-5 px-6 border-b border-slate-200">Historia i Uwagi (ostatnie 3 wizyty)</th>
+                      <th className="py-5 px-6">Gość</th><th className="py-5 px-6">Telefon</th><th className="py-5 px-6">Wizyt</th><th className="py-5 px-6">Ostatnio</th><th className="py-5 px-6">Historia</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {guestDatabase.map(guest => (
-                      <tr key={guest.idKey} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-6 px-6 font-black text-slate-800 text-lg align-top">
-                          <div className="flex items-center gap-3">
-                            <UserCircle size={28} className="text-indigo-500" />
-                            {guest.name}
-                          </div>
-                        </td>
-                        <td className="py-6 px-6 font-bold text-slate-600 align-top">
-                          <span className="flex items-center gap-2 mt-1"><Phone size={16} className="text-indigo-400"/> {guest.phone}</span>
-                        </td>
-                        <td className="py-6 px-6 align-top">
-                          <span className="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-xl font-black text-sm mt-1 inline-block">{guest.visitCount}</span>
-                        </td>
-                        <td className="py-6 px-6 font-bold text-slate-500 align-top">
-                          <div className="mt-1">{guest.lastVisit}</div>
-                        </td>
+                      <tr key={guest.idKey} className="hover:bg-slate-50/50">
+                        <td className="py-6 px-6 font-black text-slate-800 text-lg align-top"><div className="flex items-center gap-3"><UserCircle size={28} className="text-indigo-500" />{guest.name}</div></td>
+                        <td className="py-6 px-6 font-bold text-slate-600 align-top"><span className="flex items-center gap-2 mt-1"><Phone size={16} className="text-indigo-400"/> {guest.phone}</span></td>
+                        <td className="py-6 px-6 align-top"><span className="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-xl font-black text-sm mt-1 inline-block">{guest.visitCount}</span></td>
+                        <td className="py-6 px-6 font-bold text-slate-500 align-top"><div className="mt-1">{guest.lastVisit}</div></td>
                         <td className="py-6 px-6 text-sm align-top">
                           <div className="space-y-3 max-w-lg">
                             {guest.allVisits.slice().reverse().slice(0, 3).map(visit => (
                               <div key={visit.id} className="bg-white p-4 rounded-2xl border border-slate-200 text-xs shadow-sm">
-                                <div className="flex justify-between font-black text-indigo-500 mb-2">
-                                  <span>{visit.date} {visit.time} ({visit.pax} os.)</span>
-                                </div>
+                                <div className="flex justify-between font-black text-indigo-500 mb-2"><span>{visit.date} {visit.time} ({visit.pax} os.)</span></div>
                                 {visit.notes && <p className="text-slate-600 italic mb-2 bg-amber-50 p-2 rounded-lg border border-amber-100">"{visit.notes}"</p>}
-                                {visit.feedback && <p className="font-bold text-slate-700 bg-slate-50 p-2 rounded-lg border border-slate-100"><MessageSquare size={12} className="inline text-indigo-400 mr-2"/>{visit.feedback}</p>}
-                                {!visit.notes && !visit.feedback && <p className="text-slate-300 italic">Brak uwag</p>}
+                                {visit.feedback && <p className="font-bold text-slate-700 bg-slate-50 p-2 rounded-lg border border-slate-100"><MessageSquare size={12} className="inline mr-2"/>{visit.feedback}</p>}
                               </div>
                             ))}
-                            {guest.allVisits.length > 3 && (
-                              <p className="text-xs font-bold text-slate-400 italic text-center py-2">+ {guest.allVisits.length - 3} wcześniejszych wizyt</p>
-                            )}
                           </div>
                         </td>
                       </tr>
                     ))}
-                    {guestDatabase.length === 0 && (
-                      <tr>
-                        <td colSpan="5" className="py-32 text-center text-slate-400 font-black italic text-xl opacity-30 tracking-widest uppercase">
-                          Baza danych jest pusta
-                        </td>
-                      </tr>
-                    )}
                   </tbody>
                 </table>
               </div>
@@ -995,8 +823,8 @@ const App = () => {
       </main>
 
       {notification && (
-        <div className="fixed bottom-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-10 py-5 rounded-[2rem] shadow-2xl flex items-center gap-5 z-[100] animate-in slide-in-from-bottom-12 duration-500 border border-white/10">
-          <div className={`w-3 h-3 rounded-full animate-pulse shadow-lg ${notification.type === 'warning' ? 'bg-amber-400 shadow-amber-400/50' : 'bg-emerald-400 shadow-emerald-400/50'}`}></div>
+        <div className="fixed bottom-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-10 py-5 rounded-[2rem] shadow-2xl flex items-center gap-5 z-[100] animate-in slide-in-from-bottom-12 border border-white/10">
+          <div className={`w-3 h-3 rounded-full animate-pulse ${notification.type === 'warning' ? 'bg-amber-400' : 'bg-emerald-400'}`}></div>
           <span className="text-[13px] font-black uppercase tracking-widest">{notification.message}</span>
         </div>
       )}
@@ -1004,38 +832,27 @@ const App = () => {
   );
 };
 
-// --- KOMPONENTY POMOCNICZE ---
-
-const MultiTableSelect = ({ selectedIds, onChange }) => {
+const MultiTableSelect = ({ selectedIds, onChange, unavailableIds = [] }) => {
   if (!selectedIds || selectedIds.length === 0) return null;
-
   const primaryTableId = Number(selectedIds[0]);
   const activeGroup = COMBINABLE_GROUPS.find(g => g.includes(primaryTableId));
-
-  // Jeśli stolik nie należy do żadnej grupy lub jest sam, nie pokazuj panelu
   if (!activeGroup || activeGroup.length <= 1) return null;
-
-  const toggle = (id) => {
-    onChange(selectedIds.includes(id) ? selectedIds.filter(x => x !== id) : [...selectedIds, id]);
-  };
-  
+  const toggle = (id) => onChange(selectedIds.includes(id) ? selectedIds.filter(x => x !== id) : [...selectedIds, id]);
   return (
     <div className="bg-indigo-50/50 p-6 rounded-[2rem] border border-indigo-100">
-      <label className="text-[10px] font-black text-indigo-500 uppercase block mb-4 ml-2 tracking-widest">Większa grupa? Połącz z sąsiednimi stolikami:</label>
+      <label className="text-[10px] font-black text-indigo-500 uppercase block mb-4 ml-2 tracking-widest">Połącz stoliki:</label>
       <div className="flex flex-wrap gap-3">
         {activeGroup.filter(id => id !== primaryTableId).map(id => {
           const t = INITIAL_TABLES_DATA.find(table => table.id === id);
           if(!t) return null;
           const isSel = selectedIds.includes(id);
+          const isOccupied = unavailableIds.includes(id);
           return (
-            <button
-              key={id}
-              onClick={(e) => { e.preventDefault(); toggle(id); }}
-              className={`px-5 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 border-2 ${isSel ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200 transform scale-105' : 'bg-white border-indigo-100 text-slate-600 hover:border-indigo-300'}`}
+            <button key={id} disabled={isOccupied} onClick={(e) => { e.preventDefault(); if(!isOccupied) toggle(id); }}
+              className={`px-5 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 border-2 ${isOccupied ? 'opacity-50 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400' : isSel ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-indigo-100 text-slate-600'}`}
             >
-              <Plus size={16} className={isSel ? "rotate-45 transition-transform" : "transition-transform text-indigo-400"} />
-              Stół {t.number}
-              <span className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-md ml-1 ${isSel ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500'}`}><Users size={12}/>{t.capacity}</span>
+              <Plus size={16} className={isSel ? "rotate-45" : "text-indigo-400"} /> Stół {t.number} {isOccupied && '(Zajęty)'}
+              <span className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-md ml-1 ${isSel ? 'bg-indigo-500' : 'bg-slate-100'}`}><Users size={12}/>{t.capacity}</span>
             </button>
           );
         })}
@@ -1063,13 +880,13 @@ const InputGroup = ({ label, type, value, onChange, placeholder, options, min, m
         {helperText && <span className="text-[9px] font-bold text-indigo-400 tracking-wider">{helperText}</span>}
     </div>
     {type === 'select' ? (
-      <select value={value} onChange={onChange} className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 bg-white text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all">
-        {options.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+      <select value={value} onChange={onChange} className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 bg-white text-sm font-bold outline-none focus:border-indigo-500">
+        {options.map(o => <option key={o.v} value={o.v} disabled={o.disabled}>{o.l}</option>)}
       </select>
     ) : type === 'textarea' ? (
-      <textarea placeholder={placeholder} value={value} onChange={onChange} rows={2} className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 bg-white text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all resize-none" />
+      <textarea placeholder={placeholder} value={value} onChange={onChange} rows={2} className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 bg-white text-sm font-bold outline-none focus:border-indigo-500 resize-none" />
     ) : (
-      <input type={type} placeholder={placeholder} value={value} onChange={onChange} min={min} max={max} className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 bg-white text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all" />
+      <input type={type} placeholder={placeholder} value={value} onChange={onChange} min={min} max={max} className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 bg-white text-sm font-bold outline-none focus:border-indigo-500" />
     )}
   </div>
 );
