@@ -422,15 +422,30 @@ const App = () => {
     return Array.from(occupied);
   }, [resTime, resDuration, currentDayReservations, editingResId]);
 
+  // Nowa logika sortowania dla listy wyboru w formularzu
+  const sortedTablesForSelection = useMemo(() => {
+    return [...INITIAL_TABLES_DATA].sort((a, b) => {
+      const isB_A = String(a.number).startsWith('B');
+      const isB_B = String(b.number).startsWith('B');
+      
+      // Stoły barowe (B) idą na sam koniec
+      if (isB_A && !isB_B) return 1;
+      if (!isB_A && isB_B) return -1;
+      
+      // Jeśli oba są barowe lub oba są zwykłe, sortuj numerycznie (1, 10, 10A, 11...)
+      return String(a.number).localeCompare(String(b.number), undefined, { numeric: true });
+    });
+  }, []);
+
   const tableOptions = [
     { v: "", l: "-- Wybierz stolik --", disabled: false },
-    ...INITIAL_TABLES_DATA.map(t => {
+    ...sortedTablesForSelection.map(t => {
       const isOccupied = unavailableTableIds.includes(t.id);
       return { 
         v: t.id, 
         l: isOccupied 
-          ? `❌ ${t.type === 'virtual' ? 'Wirtualny ' : 'Stół '} ${t.number} - ZAJĘTY` 
-          : `✅ ${t.type === 'virtual' ? 'Wirtualny ' : 'Stół '} ${t.number} (od ${t.minCapacity} do ${t.maxCapacity} os.)`,
+          ? `❌ ${t.type === 'virtual' ? 'Wirtualny ' : t.type === 'bar' ? 'Bar ' : 'Stół '} ${t.number} - ZAJĘTY` 
+          : `✅ ${t.type === 'virtual' ? 'Wirtualny ' : t.type === 'bar' ? 'Bar ' : 'Stół '} ${t.number} (od ${t.minCapacity} do ${t.maxCapacity} os.)`,
         disabled: isOccupied
       };
     })
